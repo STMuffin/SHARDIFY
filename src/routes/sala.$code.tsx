@@ -462,7 +462,11 @@ function RoomPage() {
               track={track}
               remaining={remaining}
               revealing={revealing}
-              myGuess={myGuess}
+              myGuesses={myRoundGuesses}
+              titleFound={titleFound}
+              artistFound={artistFound}
+              roundPoints={roundPoints}
+              roundDone={roundDone}
               onAnswer={submitAnswer}
             />
           )}
