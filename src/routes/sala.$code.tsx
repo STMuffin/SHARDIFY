@@ -169,6 +169,16 @@ function RoomPage() {
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const roundDone =
     room?.mode === "choice" ? myRoundGuesses.length > 0 : titleFound && artistFound;
+  const everyoneDone = useMemo(() => {
+    if (!room || room.status !== "playing" || players.length === 0) return false;
+    return players.every((p) => {
+      const mine = guesses.filter(
+        (g) => g.player_id === p.id && g.round_idx === room.current_round,
+      );
+      if (room.mode === "choice") return mine.length > 0;
+      return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
+    });
+  }, [players, guesses, room]);
 
   // Audio: autoplay each round, stop when the time is over
   useEffect(() => {
