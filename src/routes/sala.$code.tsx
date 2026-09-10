@@ -597,7 +597,9 @@ function Lobby({
   seconds,
   mode,
   total,
+  playlistName,
   onStart,
+  onChangePlaylist,
   error,
 }: {
   isHost: boolean;
@@ -606,10 +608,14 @@ function Lobby({
   seconds: number;
   mode: string;
   total: number;
+  playlistName: string;
   onStart: () => void;
+  onChangePlaylist: (url: string) => void;
   error: string | null;
 }) {
+  const [newPlaylist, setNewPlaylist] = useState("");
   return (
+
     <div className="text-center">
       <h2 className="font-display text-3xl font-bold">Sala de espera</h2>
       <p className="mt-2 text-sm text-muted-foreground">
