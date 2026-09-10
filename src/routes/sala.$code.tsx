@@ -589,23 +589,35 @@ function RoundView({
   track,
   remaining,
   revealing,
-  myGuess,
+  myGuesses,
+  titleFound,
+  artistFound,
+  roundPoints,
+  roundDone,
   onAnswer,
 }: {
   room: RoomRow;
   track: RoundTrackRow | null;
   remaining: number;
   revealing: boolean;
-  myGuess: GuessRow | undefined;
-  onAnswer: (payload: { title: string; artist: string } | { option: string }) => void;
+  myGuesses: GuessRow[];
+  titleFound: boolean;
+  artistFound: boolean;
+  roundPoints: number;
+  roundDone: boolean;
+  onAnswer: (payload: { text: string } | { option: string }) => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
+  const [text, setText] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTitle("");
-    setArtist("");
+    setText("");
   }, [room.current_round]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: "nearest" });
+  }, [myGuesses.length]);
+
 
   if (!track) {
     return (
