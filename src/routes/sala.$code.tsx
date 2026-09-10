@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
-import { findPlayableTracks } from "@/lib/game.functions";
+import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
 import { isClose } from "@/lib/match";
 import {
   db,
@@ -39,6 +39,7 @@ const REVEAL_SECONDS = 6;
 function RoomPage() {
   const { code } = Route.useParams();
   const runFindTracks = useServerFn(findPlayableTracks);
+  const runLoadPlaylist = useServerFn(loadPlaylist);
 
   const [clientKey, setClientKey] = useState("");
   const [room, setRoom] = useState<RoomRow | null>(null);
@@ -228,6 +229,29 @@ function RoomPage() {
     if (joinError) setError("No se pudo entrar en la sala.");
     await loadPlayers(room.id);
     setBusy(false);
+  }
+
+  async function changePlaylist(url: string) {
+    if (!room || !url.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await runLoadPlaylist({ data: { url: url.trim() } });
+      if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+      await db
+        .from("rooms")
+        .update({
+          playlist_name: data.name,
+          playlist_image: data.image,
+          tracks: data.tracks,
+        })
+        .eq("id", room.id);
+      await loadRoom();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pude leer esa playlist.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function startGame() {
@@ -471,9 +495,12 @@ function RoomPage() {
               seconds={room.seconds}
               mode={room.mode}
               total={room.tracks?.length ?? 0}
+              playlistName={room.playlist_name}
               onStart={startGame}
+              onChangePlaylist={changePlaylist}
               error={error}
             />
+
           )}
 
           {room.status === "loading" && (
@@ -570,7 +597,9 @@ function Lobby({
   seconds,
   mode,
   total,
+  playlistName,
   onStart,
+  onChangePlaylist,
   error,
 }: {
   isHost: boolean;
@@ -579,10 +608,14 @@ function Lobby({
   seconds: number;
   mode: string;
   total: number;
+  playlistName: string;
   onStart: () => void;
+  onChangePlaylist: (url: string) => void;
   error: string | null;
 }) {
+  const [newPlaylist, setNewPlaylist] = useState("");
   return (
+
     <div className="text-center">
       <h2 className="font-display text-3xl font-bold">Sala de espera</h2>
       <p className="mt-2 text-sm text-muted-foreground">
@@ -594,8 +627,34 @@ function Lobby({
         <Stat label="Modo" value={mode === "choice" ? "Opción múltiple" : "Escribir"} />
       </div>
       <p className="mt-4 text-xs text-muted-foreground">
-        {total} canciones cargadas de la playlist · se sortean nuevas cada partida
+        <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
+        se sortean nuevas cada partida
       </p>
+      {isHost && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onChangePlaylist(newPlaylist);
+            setNewPlaylist("");
+          }}
+          className="mx-auto mt-5 flex max-w-md gap-2"
+        >
+          <input
+            value={newPlaylist}
+            onChange={(e) => setNewPlaylist(e.target.value)}
+            placeholder="Pega otra playlist de Spotify…"
+            className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+          >
+            Cambiar
+          </button>
+        </form>
+      )}
+
       {isHost ? (
         <button
           onClick={onStart}

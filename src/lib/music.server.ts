@@ -99,6 +99,9 @@ async function fetchViaEmbed(playlistId: string) {
   try {
     const data = JSON.parse(match[1]) as any;
     const entity = data?.props?.pageProps?.state?.data?.entity;
+    // Make sure Spotify returned the playlist we asked for, not a fallback one.
+    const uri: string = entity?.uri ?? "";
+    if (uri && !uri.endsWith(playlistId)) return null;
     const list = entity?.trackList ?? [];
     const tracks: PlaylistTrack[] = [];
     for (const t of list) {
@@ -106,6 +109,7 @@ async function fetchViaEmbed(playlistId: string) {
       tracks.push({ title: t.title, artist: t.subtitle, cover: entity?.coverArt?.sources?.[0]?.url ?? null });
     }
     if (!tracks.length) return null;
+
     return {
       name: entity?.name ?? "Playlist",
       image: entity?.coverArt?.sources?.[0]?.url ?? null,
