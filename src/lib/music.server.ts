@@ -41,7 +41,10 @@ async function fetchViaApi(playlistId: string, token: string) {
     `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images`,
     { headers: { authorization: `Bearer ${token}` } },
   );
-  if (!head.ok) return null;
+  if (!head.ok) {
+    console.error("[spotify] playlist head failed", head.status, await head.text());
+    return null;
+  }
   const meta = (await head.json()) as { name?: string; images?: { url: string }[] };
 
   const tracks: PlaylistTrack[] = [];
