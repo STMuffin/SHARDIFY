@@ -815,8 +815,19 @@ function RoundView({
                     Escribe lo que creas: el título o el artista. Detecto cuál acertaste.
                   </p>
                 )}
-                {myGuesses.map((g) => {
+                {myGuesses.map((g, i) => {
                   const hit = g.correct_title || g.correct_artist;
+                  // Progress up to this message, so the hint matches that moment.
+                  const before = myGuesses.slice(0, i);
+                  const hint = hit
+                    ? null
+                    : nearMissHint(
+                        g.answer,
+                        track.title,
+                        track.artist,
+                        before.some((p) => p.correct_title),
+                        before.some((p) => p.correct_artist),
+                      );
                   return (
                     <div key={g.id} className="flex flex-col items-end gap-1">
                       <span className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
@@ -835,9 +846,15 @@ function RoundView({
                               ? `¡Artista correcto! +${g.points}`
                               : "Nop, sigue intentando"}
                       </span>
+                      {hint && (
+                        <span className="max-w-[85%] rounded-2xl rounded-bl-sm bg-secondary px-4 py-2 text-xs font-medium text-foreground">
+                          🔥 {hint}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
+
                 <div ref={chatEndRef} />
               </div>
 
