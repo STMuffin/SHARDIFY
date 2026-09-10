@@ -51,3 +51,50 @@ export function isClose(guess: string, expected: string): boolean {
   if (parts.length > 1 && parts.some((p) => p.length > 2 && similarity(g, p) >= 0.85)) return true;
   return similarity(g, e) >= 0.82;
 }
+
+/** How close a guess is to a value, mixing whole-string and word matches. */
+export function closeness(guess: string, expected: string): number {
+  const g = normalize(guess);
+  const e = normalize(expected);
+  if (!g || !e) return 0;
+  const whole = similarity(g, e);
+  const gw = g.split(" ").filter((w) => w.length > 2);
+  const ew = e.split(" ").filter((w) => w.length > 2);
+  let word = 0;
+  for (const a of gw) {
+    for (const b of ew) {
+      word = Math.max(word, similarity(a, b) * 0.9);
+    }
+  }
+  return Math.max(whole, word);
+}
+
+/** A small clue: first letter and number of words. */
+export function shapeHint(value: string): string {
+  const clean = normalize(value);
+  const words = clean.split(" ").filter(Boolean);
+  const first = (words[0] ?? "?")[0]?.toUpperCase() ?? "?";
+  return `empieza por «${first}» y tiene ${words.length} ${
+    words.length === 1 ? "palabra" : "palabras"
+  }`;
+}
+
+/** Message shown when a wrong guess is nearly right. */
+export function nearMissHint(
+  guess: string,
+  title: string,
+  artist: string,
+  titleFound: boolean,
+  artistFound: boolean,
+): string | null {
+  const st = titleFound ? 0 : closeness(guess, title);
+  const sa = artistFound ? 0 : closeness(guess, artist);
+  const best = Math.max(st, sa);
+  if (best < 0.45) return null;
+  const isTitle = st >= sa;
+  const what = isTitle ? "la canción" : "el artista";
+  const value = isTitle ? title : artist;
+  if (best >= 0.7) return `¡Muy caliente! Casi tienes ${what}: ${shapeHint(value)}`;
+  return `Vas por buen camino con ${what}: ${shapeHint(value)}`;
+}
+
