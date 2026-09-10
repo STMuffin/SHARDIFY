@@ -47,6 +47,7 @@ export type GuessRow = {
   correct_title: boolean;
   correct_artist: boolean;
   points: number;
+  created_at: string;
 };
 
 const KEY = "blindbeat.client-key";
