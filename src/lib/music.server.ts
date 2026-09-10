@@ -131,7 +131,8 @@ export async function fetchPlaylist(input: string) {
   if (!id) throw new Error("Ese enlace no parece una playlist de Spotify.");
   const token = await getAppToken();
   const viaApi = token ? await fetchViaApi(id, token) : null;
-  const result = viaApi ?? (await fetchViaEmbed(id));
+  // The API can answer with an empty list (region/market quirks); fall back then too.
+  const result = viaApi?.tracks.length ? viaApi : await fetchViaEmbed(id);
   if (!result || !result.tracks.length) {
     throw new Error(
       "No pude leer esa playlist. Comprueba que sea pública y vuelve a intentarlo.",
