@@ -495,9 +495,12 @@ function RoomPage() {
               seconds={room.seconds}
               mode={room.mode}
               total={room.tracks?.length ?? 0}
+              playlistName={room.playlist_name}
               onStart={startGame}
+              onChangePlaylist={changePlaylist}
               error={error}
             />
+
           )}
 
           {room.status === "loading" && (
