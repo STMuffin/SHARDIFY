@@ -157,9 +157,18 @@ function RoomPage() {
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
   const revealing = room?.status === "playing" && remaining <= 0;
-  const myGuess = guesses.find(
-    (g) => g.player_id === me?.id && g.round_idx === (room?.current_round ?? -1),
+  const myRoundGuesses = useMemo(
+    () =>
+      guesses
+        .filter((g) => g.player_id === me?.id && g.round_idx === (room?.current_round ?? -1))
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [guesses, me?.id, room?.current_round],
   );
+  const titleFound = myRoundGuesses.some((g) => g.correct_title);
+  const artistFound = myRoundGuesses.some((g) => g.correct_artist);
+  const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
+  const roundDone =
+    room?.mode === "choice" ? myRoundGuesses.length > 0 : titleFound && artistFound;
 
   // Audio: autoplay each round, stop when the time is over
   useEffect(() => {
