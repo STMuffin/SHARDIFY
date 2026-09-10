@@ -217,7 +217,8 @@ function RoomPage() {
     setError(null);
     try {
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
-      const pool = shuffle(room.tracks);
+      const allTracks = room.tracks ?? [];
+      const pool = shuffle(allTracks);
       const candidates = pool.slice(0, Math.min(pool.length, room.rounds * 4));
       const { tracks: playable } = await runFindTracks({
         data: { candidates, need: room.rounds },
