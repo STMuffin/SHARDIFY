@@ -39,6 +39,7 @@ const REVEAL_SECONDS = 6;
 function RoomPage() {
   const { code } = Route.useParams();
   const runFindTracks = useServerFn(findPlayableTracks);
+  const runLoadPlaylist = useServerFn(loadPlaylist);
 
   const [clientKey, setClientKey] = useState("");
   const [room, setRoom] = useState<RoomRow | null>(null);
