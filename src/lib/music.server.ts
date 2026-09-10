@@ -178,7 +178,8 @@ async function previewFromDeezer(track: PlaylistTrack) {
 
 export async function resolvePreview(track: PlaylistTrack): Promise<PlayableTrack | null> {
   try {
-    const found = (await previewFromItunes(track)) ?? (await previewFromDeezer(track));
+    // Deezer serves MP3 (playable everywhere); iTunes AAC is the fallback.
+    const found = (await previewFromDeezer(track)) ?? (await previewFromItunes(track));
     if (!found) return null;
     return { ...track, previewUrl: found.url, cover: track.cover ?? found.cover };
   } catch {
