@@ -658,15 +658,13 @@ function RoundView({
             )}
             <p className="mt-4 font-display text-2xl font-bold">{track.title}</p>
             <p className="text-sm text-muted-foreground">{track.artist}</p>
-            {myGuess && (
-              <p
-                className={`mt-4 text-sm font-bold ${
-                  myGuess.points > 0 ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                {myGuess.points > 0 ? `+${myGuess.points} puntos` : "Sin puntos esta ronda"}
-              </p>
-            )}
+            <p
+              className={`mt-4 text-sm font-bold ${
+                roundPoints > 0 ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {roundPoints > 0 ? `+${roundPoints} puntos` : "Sin puntos esta ronda"}
+            </p>
           </div>
         ) : (
           <div className="flex h-40 items-end gap-1.5">
