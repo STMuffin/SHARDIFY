@@ -103,7 +103,10 @@ function RoomPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-        (payload: { new: RoomRow }) => setRoom(payload.new),
+        // Large unchanged columns (tracks) are omitted from realtime payloads,
+        // so merge onto the previous row instead of replacing it.
+        (payload: { new: Partial<RoomRow> }) =>
+          setRoom((prev) => ({ ...(prev as RoomRow), ...payload.new }) as RoomRow),
       )
       .on(
         "postgres_changes",
