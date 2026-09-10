@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
-import { findPlayableTracks } from "@/lib/game.functions";
+import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
 import { isClose } from "@/lib/match";
 import {
   db,
