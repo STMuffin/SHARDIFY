@@ -159,7 +159,10 @@ async function previewFromItunes(track: PlaylistTrack) {
 async function previewFromDeezer(track: PlaylistTrack) {
   const term = encodeURIComponent(`${track.artist} ${track.title}`);
   const res = await fetch(`https://api.deezer.com/search?q=${term}&limit=5`);
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error("deezer failed", res.status);
+    return null;
+  }
   const json = (await res.json()) as {
     data?: { title?: string; preview?: string; artist?: { name?: string }; album?: { cover_big?: string } }[];
   };
@@ -182,7 +185,8 @@ export async function resolvePreview(track: PlaylistTrack): Promise<PlayableTrac
     const found = (await previewFromDeezer(track)) ?? (await previewFromItunes(track));
     if (!found) return null;
     return { ...track, previewUrl: found.url, cover: track.cover ?? found.cover };
-  } catch {
+  } catch (err) {
+    console.error("preview failed", err);
     return null;
   }
 }
