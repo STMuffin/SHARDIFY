@@ -627,8 +627,34 @@ function Lobby({
         <Stat label="Modo" value={mode === "choice" ? "Opción múltiple" : "Escribir"} />
       </div>
       <p className="mt-4 text-xs text-muted-foreground">
-        {total} canciones cargadas de la playlist · se sortean nuevas cada partida
+        <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
+        se sortean nuevas cada partida
       </p>
+      {isHost && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onChangePlaylist(newPlaylist);
+            setNewPlaylist("");
+          }}
+          className="mx-auto mt-5 flex max-w-md gap-2"
+        >
+          <input
+            value={newPlaylist}
+            onChange={(e) => setNewPlaylist(e.target.value)}
+            placeholder="Pega otra playlist de Spotify…"
+            className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+          >
+            Cambiar
+          </button>
+        </form>
+      )}
+
       {isHost ? (
         <button
           onClick={onStart}
