@@ -157,9 +157,18 @@ function RoomPage() {
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
   const revealing = room?.status === "playing" && remaining <= 0;
-  const myGuess = guesses.find(
-    (g) => g.player_id === me?.id && g.round_idx === (room?.current_round ?? -1),
+  const myRoundGuesses = useMemo(
+    () =>
+      guesses
+        .filter((g) => g.player_id === me?.id && g.round_idx === (room?.current_round ?? -1))
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [guesses, me?.id, room?.current_round],
   );
+  const titleFound = myRoundGuesses.some((g) => g.correct_title);
+  const artistFound = myRoundGuesses.some((g) => g.correct_artist);
+  const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
+  const roundDone =
+    room?.mode === "choice" ? myRoundGuesses.length > 0 : titleFound && artistFound;
 
   // Audio: autoplay each round, stop when the time is over
   useEffect(() => {
@@ -284,24 +293,28 @@ function RoomPage() {
     })();
   }, [room, isHost, elapsed, seconds, loadRoom]);
 
-  async function submitAnswer(payload: { title: string; artist: string } | { option: string }) {
-    if (!room || !me || !track || myGuess || revealing) return;
+  async function submitAnswer(payload: { text: string } | { option: string }) {
+    if (!room || !me || !track || revealing || roundDone) return;
     const factor = 0.4 + 0.6 * (remaining / seconds);
     let titleOk = false;
     let artistOk = false;
     let answer = "";
+    let base = 0;
 
     if ("option" in payload) {
       answer = payload.option;
       titleOk = payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
+      base = titleOk ? 1000 : 0;
     } else {
-      answer = `${payload.title} / ${payload.artist}`;
-      titleOk = payload.title.trim() ? isClose(payload.title, track.title) : false;
-      artistOk = payload.artist.trim() ? isClose(payload.artist, track.artist) : false;
+      answer = payload.text.trim();
+      if (!answer) return;
+      // A single chat message can match the song title or the artist.
+      titleOk = !titleFound && isClose(answer, track.title);
+      artistOk = !artistFound && isClose(answer, track.artist);
+      base = (titleOk ? 600 : 0) + (artistOk ? 400 : 0);
     }
 
-    const base = "option" in payload ? (titleOk ? 1000 : 0) : (titleOk ? 600 : 0) + (artistOk ? 400 : 0);
     const points = Math.round(base * factor);
 
     await db.from("guesses").insert({
@@ -319,6 +332,7 @@ function RoomPage() {
     await loadGuesses(room.id);
     await loadPlayers(room.id);
   }
+
 
   async function playAgain() {
     if (!room) return;
@@ -448,7 +462,11 @@ function RoomPage() {
               track={track}
               remaining={remaining}
               revealing={revealing}
-              myGuess={myGuess}
+              myGuesses={myRoundGuesses}
+              titleFound={titleFound}
+              artistFound={artistFound}
+              roundPoints={roundPoints}
+              roundDone={roundDone}
               onAnswer={submitAnswer}
             />
           )}
@@ -571,23 +589,35 @@ function RoundView({
   track,
   remaining,
   revealing,
-  myGuess,
+  myGuesses,
+  titleFound,
+  artistFound,
+  roundPoints,
+  roundDone,
   onAnswer,
 }: {
   room: RoomRow;
   track: RoundTrackRow | null;
   remaining: number;
   revealing: boolean;
-  myGuess: GuessRow | undefined;
-  onAnswer: (payload: { title: string; artist: string } | { option: string }) => void;
+  myGuesses: GuessRow[];
+  titleFound: boolean;
+  artistFound: boolean;
+  roundPoints: number;
+  roundDone: boolean;
+  onAnswer: (payload: { text: string } | { option: string }) => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
+  const [text, setText] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setTitle("");
-    setArtist("");
+    setText("");
   }, [room.current_round]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: "nearest" });
+  }, [myGuesses.length]);
+
 
   if (!track) {
     return (
@@ -628,15 +658,13 @@ function RoundView({
             )}
             <p className="mt-4 font-display text-2xl font-bold">{track.title}</p>
             <p className="text-sm text-muted-foreground">{track.artist}</p>
-            {myGuess && (
-              <p
-                className={`mt-4 text-sm font-bold ${
-                  myGuess.points > 0 ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                {myGuess.points > 0 ? `+${myGuess.points} puntos` : "Sin puntos esta ronda"}
-              </p>
-            )}
+            <p
+              className={`mt-4 text-sm font-bold ${
+                roundPoints > 0 ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {roundPoints > 0 ? `+${roundPoints} puntos` : "Sin puntos esta ronda"}
+            </p>
           </div>
         ) : (
           <div className="flex h-40 items-end gap-1.5">
@@ -653,49 +681,110 @@ function RoundView({
 
       {!revealing && (
         <div className="mt-8">
-          {myGuess ? (
-            <p className="text-center text-sm text-muted-foreground">
-              Respuesta enviada. Espera al resto…
-            </p>
-          ) : room.mode === "choice" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {track.options.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => onAnswer({ option })}
-                  className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+          {room.mode === "choice" ? (
+            myGuesses.length > 0 ? (
+              <p className="text-center text-sm text-muted-foreground">
+                Respuesta enviada. Espera al resto…
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {track.options.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => onAnswer({ option })}
+                    className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                onAnswer({ title, artist });
-              }}
-              className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
-            >
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título de la canción"
-                className="rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <input
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                placeholder="Artista"
-                className="rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <button
-                type="submit"
-                className="glow rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground"
-              >
-                Enviar
-              </button>
-            </form>
+            <div className="rounded-2xl border border-border bg-background/40 p-4">
+              <div className="flex gap-2 text-xs font-bold uppercase tracking-widest">
+                <span
+                  className={`rounded-full px-3 py-1 ${
+                    titleFound
+                      ? "bg-primary/20 text-primary"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {titleFound ? "Canción ✓" : "Canción ?"}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 ${
+                    artistFound
+                      ? "bg-primary/20 text-primary"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {artistFound ? "Artista ✓" : "Artista ?"}
+                </span>
+              </div>
+
+              <div className="mt-4 max-h-52 space-y-2 overflow-y-auto pr-1">
+                {myGuesses.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Escribe lo que creas: el título o el artista. Detecto cuál acertaste.
+                  </p>
+                )}
+                {myGuesses.map((g) => {
+                  const hit = g.correct_title || g.correct_artist;
+                  return (
+                    <div key={g.id} className="flex flex-col items-end gap-1">
+                      <span className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                        {g.answer}
+                      </span>
+                      <span
+                        className={`text-xs font-bold ${
+                          hit ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {g.correct_title && g.correct_artist
+                          ? `¡Canción y artista! +${g.points}`
+                          : g.correct_title
+                            ? `¡Título correcto! +${g.points}`
+                            : g.correct_artist
+                              ? `¡Artista correcto! +${g.points}`
+                              : "Nop, sigue intentando"}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
+
+              {roundDone ? (
+                <p className="mt-4 text-center text-sm font-bold text-primary">
+                  ¡Completado! Espera a la siguiente ronda…
+                </p>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    onAnswer({ text });
+                    setText("");
+                  }}
+                  className="mt-4 flex gap-2"
+                >
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    autoFocus
+                    placeholder={
+                      titleFound ? "¿Quién la canta?" : artistFound ? "¿Cómo se llama?" : "Escribe canción o artista…"
+                    }
+                    className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    type="submit"
+                    className="glow rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                  >
+                    Enviar
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </div>
       )}
