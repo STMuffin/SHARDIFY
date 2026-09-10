@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
-import { isClose } from "@/lib/match";
+import { isClose, nearMissHint } from "@/lib/match";
 import {
   db,
   getClientKey,
