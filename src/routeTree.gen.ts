@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SalaCodeRouteImport } from './routes/sala.$code'
+import { Route as ApiPublicSpotdiagRouteImport } from './routes/api/public/spotdiag'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const SalaCodeRoute = SalaCodeRouteImport.update({
   path: '/sala/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSpotdiagRoute = ApiPublicSpotdiagRouteImport.update({
+  id: '/api/public/spotdiag',
+  path: '/api/public/spotdiag',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/sala/$code': typeof SalaCodeRoute
+  '/api/public/spotdiag': typeof ApiPublicSpotdiagRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/sala/$code': typeof SalaCodeRoute
+  '/api/public/spotdiag': typeof ApiPublicSpotdiagRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/sala/$code': typeof SalaCodeRoute
+  '/api/public/spotdiag': typeof ApiPublicSpotdiagRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sala/$code'
+  fullPaths: '/' | '/sala/$code' | '/api/public/spotdiag'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sala/$code'
-  id: '__root__' | '/' | '/sala/$code'
+  to: '/' | '/sala/$code' | '/api/public/spotdiag'
+  id: '__root__' | '/' | '/sala/$code' | '/api/public/spotdiag'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SalaCodeRoute: typeof SalaCodeRoute
+  ApiPublicSpotdiagRoute: typeof ApiPublicSpotdiagRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SalaCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/spotdiag': {
+      id: '/api/public/spotdiag'
+      path: '/api/public/spotdiag'
+      fullPath: '/api/public/spotdiag'
+      preLoaderRoute: typeof ApiPublicSpotdiagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SalaCodeRoute: SalaCodeRoute,
+  ApiPublicSpotdiagRoute: ApiPublicSpotdiagRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
