@@ -231,6 +231,29 @@ function RoomPage() {
     setBusy(false);
   }
 
+  async function changePlaylist(url: string) {
+    if (!room || !url.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await runLoadPlaylist({ data: { url: url.trim() } });
+      if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+      await db
+        .from("rooms")
+        .update({
+          playlist_name: data.name,
+          playlist_image: data.image,
+          tracks: data.tracks,
+        })
+        .eq("id", room.id);
+      await loadRoom();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pude leer esa playlist.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function startGame() {
     if (!room) return;
     setBusy(true);
