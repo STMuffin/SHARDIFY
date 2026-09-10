@@ -303,6 +303,24 @@ function RoomPage() {
     })();
   }, [room, isHost, elapsed, seconds, loadRoom]);
 
+  // Everyone answered: cut the timer short so the result shows right away
+  const cuttingRef = useRef(false);
+  useEffect(() => {
+    if (!room || !isHost || room.status !== "playing") return;
+    if (!everyoneDone || revealing || cuttingRef.current) return;
+    cuttingRef.current = true;
+    void (async () => {
+      await db
+        .from("rooms")
+        .update({ round_started_at: new Date(Date.now() - seconds * 1000).toISOString() })
+        .eq("id", room.id);
+      await loadRoom();
+      cuttingRef.current = false;
+    })();
+  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom]);
+
+
+
   async function submitAnswer(payload: { text: string } | { option: string }) {
     if (!room || !me || !track || revealing || roundDone) return;
     const factor = 0.4 + 0.6 * (remaining / seconds);
