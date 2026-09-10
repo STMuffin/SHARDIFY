@@ -169,6 +169,16 @@ function RoomPage() {
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const roundDone =
     room?.mode === "choice" ? myRoundGuesses.length > 0 : titleFound && artistFound;
+  const everyoneDone = useMemo(() => {
+    if (!room || room.status !== "playing" || players.length === 0) return false;
+    return players.every((p) => {
+      const mine = guesses.filter(
+        (g) => g.player_id === p.id && g.round_idx === room.current_round,
+      );
+      if (room.mode === "choice") return mine.length > 0;
+      return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
+    });
+  }, [players, guesses, room]);
 
   // Audio: autoplay each round, stop when the time is over
   useEffect(() => {
@@ -292,6 +302,24 @@ function RoomPage() {
       advancingRef.current = false;
     })();
   }, [room, isHost, elapsed, seconds, loadRoom]);
+
+  // Everyone answered: cut the timer short so the result shows right away
+  const cuttingRef = useRef(false);
+  useEffect(() => {
+    if (!room || !isHost || room.status !== "playing") return;
+    if (!everyoneDone || revealing || cuttingRef.current) return;
+    cuttingRef.current = true;
+    void (async () => {
+      await db
+        .from("rooms")
+        .update({ round_started_at: new Date(Date.now() - seconds * 1000).toISOString() })
+        .eq("id", room.id);
+      await loadRoom();
+      cuttingRef.current = false;
+    })();
+  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom]);
+
+
 
   async function submitAnswer(payload: { text: string } | { option: string }) {
     if (!room || !me || !track || revealing || roundDone) return;

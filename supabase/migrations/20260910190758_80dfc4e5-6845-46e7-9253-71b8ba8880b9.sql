@@ -1,0 +1,1 @@
+ALTER TABLE public.guesses DROP CONSTRAINT IF EXISTS guesses_room_id_round_idx_player_id_key;
