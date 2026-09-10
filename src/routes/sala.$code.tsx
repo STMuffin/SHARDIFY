@@ -427,7 +427,7 @@ function RoomPage() {
               rounds={room.rounds}
               seconds={room.seconds}
               mode={room.mode}
-              total={room.tracks.length}
+              total={room.tracks?.length ?? 0}
               onStart={startGame}
               error={error}
             />
