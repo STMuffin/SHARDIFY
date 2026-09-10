@@ -227,7 +227,7 @@ function RoomPage() {
 
       const rows = playable.map((t, idx) => {
         const wrong = shuffle(
-          room.tracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
+          allTracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
         )
           .slice(0, 3)
           .map((o) => `${o.title} — ${o.artist}`);
