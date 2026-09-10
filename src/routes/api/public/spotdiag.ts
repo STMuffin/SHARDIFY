@@ -25,13 +25,13 @@ export const Route = createFileRoute("/api/public/spotdiag")({
         };
         if (token) {
           for (const [label, url] of [
-            ["playlist", `https://api.spotify.com/v1/playlists/${id}`],
+            ["playlist", `https://api.spotify.com/v1/playlists/${id}?fields=name,owner(display_name,id),tracks(total)`],
             ["tracksPlain", `https://api.spotify.com/v1/playlists/${id}/tracks`],
             ["tracksOffset", `https://api.spotify.com/v1/playlists/${id}/tracks?offset=100&limit=100`],
             ["plFields", `https://api.spotify.com/v1/playlists/${id}?fields=tracks(total,next,items(track(name)))`],
           ] as const) {
             const r = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-            out[label] = `${r.status} ${(await r.text()).slice(0, 160)}`;
+            out[label] = `${r.status} ${(await r.text()).slice(0, 300)}`;
           }
         }
         return new Response(JSON.stringify(out, null, 2), {
