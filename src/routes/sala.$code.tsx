@@ -681,49 +681,110 @@ function RoundView({
 
       {!revealing && (
         <div className="mt-8">
-          {myGuess ? (
-            <p className="text-center text-sm text-muted-foreground">
-              Respuesta enviada. Espera al resto…
-            </p>
-          ) : room.mode === "choice" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {track.options.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => onAnswer({ option })}
-                  className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+          {room.mode === "choice" ? (
+            myGuesses.length > 0 ? (
+              <p className="text-center text-sm text-muted-foreground">
+                Respuesta enviada. Espera al resto…
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {track.options.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => onAnswer({ option })}
+                    className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                onAnswer({ title, artist });
-              }}
-              className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
-            >
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título de la canción"
-                className="rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <input
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                placeholder="Artista"
-                className="rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <button
-                type="submit"
-                className="glow rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground"
-              >
-                Enviar
-              </button>
-            </form>
+            <div className="rounded-2xl border border-border bg-background/40 p-4">
+              <div className="flex gap-2 text-xs font-bold uppercase tracking-widest">
+                <span
+                  className={`rounded-full px-3 py-1 ${
+                    titleFound
+                      ? "bg-primary/20 text-primary"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {titleFound ? "Canción ✓" : "Canción ?"}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 ${
+                    artistFound
+                      ? "bg-primary/20 text-primary"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {artistFound ? "Artista ✓" : "Artista ?"}
+                </span>
+              </div>
+
+              <div className="mt-4 max-h-52 space-y-2 overflow-y-auto pr-1">
+                {myGuesses.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Escribe lo que creas: el título o el artista. Detecto cuál acertaste.
+                  </p>
+                )}
+                {myGuesses.map((g) => {
+                  const hit = g.correct_title || g.correct_artist;
+                  return (
+                    <div key={g.id} className="flex flex-col items-end gap-1">
+                      <span className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                        {g.answer}
+                      </span>
+                      <span
+                        className={`text-xs font-bold ${
+                          hit ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {g.correct_title && g.correct_artist
+                          ? `¡Canción y artista! +${g.points}`
+                          : g.correct_title
+                            ? `¡Título correcto! +${g.points}`
+                            : g.correct_artist
+                              ? `¡Artista correcto! +${g.points}`
+                              : "Nop, sigue intentando"}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div ref={chatEndRef} />
+              </div>
+
+              {roundDone ? (
+                <p className="mt-4 text-center text-sm font-bold text-primary">
+                  ¡Completado! Espera a la siguiente ronda…
+                </p>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    onAnswer({ text });
+                    setText("");
+                  }}
+                  className="mt-4 flex gap-2"
+                >
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    autoFocus
+                    placeholder={
+                      titleFound ? "¿Quién la canta?" : artistFound ? "¿Cómo se llama?" : "Escribe canción o artista…"
+                    }
+                    className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    type="submit"
+                    className="glow rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                  >
+                    Enviar
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </div>
       )}
