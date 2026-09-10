@@ -293,24 +293,28 @@ function RoomPage() {
     })();
   }, [room, isHost, elapsed, seconds, loadRoom]);
 
-  async function submitAnswer(payload: { title: string; artist: string } | { option: string }) {
-    if (!room || !me || !track || myGuess || revealing) return;
+  async function submitAnswer(payload: { text: string } | { option: string }) {
+    if (!room || !me || !track || revealing || roundDone) return;
     const factor = 0.4 + 0.6 * (remaining / seconds);
     let titleOk = false;
     let artistOk = false;
     let answer = "";
+    let base = 0;
 
     if ("option" in payload) {
       answer = payload.option;
       titleOk = payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
+      base = titleOk ? 1000 : 0;
     } else {
-      answer = `${payload.title} / ${payload.artist}`;
-      titleOk = payload.title.trim() ? isClose(payload.title, track.title) : false;
-      artistOk = payload.artist.trim() ? isClose(payload.artist, track.artist) : false;
+      answer = payload.text.trim();
+      if (!answer) return;
+      // A single chat message can match the song title or the artist.
+      titleOk = !titleFound && isClose(answer, track.title);
+      artistOk = !artistFound && isClose(answer, track.artist);
+      base = (titleOk ? 600 : 0) + (artistOk ? 400 : 0);
     }
 
-    const base = "option" in payload ? (titleOk ? 1000 : 0) : (titleOk ? 600 : 0) + (artistOk ? 400 : 0);
     const points = Math.round(base * factor);
 
     await db.from("guesses").insert({
@@ -328,6 +332,7 @@ function RoomPage() {
     await loadGuesses(room.id);
     await loadPlayers(room.id);
   }
+
 
   async function playAgain() {
     if (!room) return;
