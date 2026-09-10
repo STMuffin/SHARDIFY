@@ -103,7 +103,10 @@ function RoomPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-        (payload: { new: RoomRow }) => setRoom(payload.new),
+        // Large unchanged columns (tracks) are omitted from realtime payloads,
+        // so merge onto the previous row instead of replacing it.
+        (payload: { new: Partial<RoomRow> }) =>
+          setRoom((prev) => ({ ...(prev as RoomRow), ...payload.new }) as RoomRow),
       )
       .on(
         "postgres_changes",
@@ -214,7 +217,8 @@ function RoomPage() {
     setError(null);
     try {
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
-      const pool = shuffle(room.tracks);
+      const allTracks = room.tracks ?? [];
+      const pool = shuffle(allTracks);
       const candidates = pool.slice(0, Math.min(pool.length, room.rounds * 4));
       const { tracks: playable } = await runFindTracks({
         data: { candidates, need: room.rounds },
@@ -223,7 +227,7 @@ function RoomPage() {
 
       const rows = playable.map((t, idx) => {
         const wrong = shuffle(
-          room.tracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
+          allTracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
         )
           .slice(0, 3)
           .map((o) => `${o.title} — ${o.artist}`);
@@ -424,7 +428,7 @@ function RoomPage() {
               rounds={room.rounds}
               seconds={room.seconds}
               mode={room.mode}
-              total={room.tracks.length}
+              total={room.tracks?.length ?? 0}
               onStart={startGame}
               error={error}
             />
