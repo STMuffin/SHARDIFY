@@ -99,8 +99,7 @@ function RoomPage() {
 
   useEffect(() => {
     if (!roomId) return;
-    const channel = db
-      .channel(`room-${roomId}`)
+    const channel = (db.channel(`room-${roomId}`) as any)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
