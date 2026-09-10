@@ -1,0 +1,2 @@
+CREATE POLICY "guesses deletable" ON public.guesses FOR DELETE TO anon, authenticated USING (true);
+CREATE POLICY "round tracks deletable" ON public.round_tracks FOR DELETE TO anon, authenticated USING (true);
