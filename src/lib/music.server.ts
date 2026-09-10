@@ -41,17 +41,23 @@ async function fetchViaApi(playlistId: string, token: string) {
     `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images`,
     { headers: { authorization: `Bearer ${token}` } },
   );
-  if (!head.ok) return null;
+  if (!head.ok) {
+    console.error("[spotify] playlist head failed", head.status, await head.text());
+    return null;
+  }
   const meta = (await head.json()) as { name?: string; images?: { url: string }[] };
 
   const tracks: PlaylistTrack[] = [];
   let url:
     | string
-    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&fields=next,items(track(name,artists(name),album(images)))`;
+    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=US`;
 
   while (url && tracks.length < 5000) {
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-    if (!res.ok) break;
+    if (!res.ok) {
+      console.error("[spotify] tracks page failed", res.status, await res.text());
+      break;
+    }
     const page = (await res.json()) as {
       next: string | null;
       items: {
@@ -125,7 +131,8 @@ export async function fetchPlaylist(input: string) {
   if (!id) throw new Error("Ese enlace no parece una playlist de Spotify.");
   const token = await getAppToken();
   const viaApi = token ? await fetchViaApi(id, token) : null;
-  const result = viaApi ?? (await fetchViaEmbed(id));
+  // The API can answer with an empty list (region/market quirks); fall back then too.
+  const result = viaApi?.tracks.length ? viaApi : await fetchViaEmbed(id);
   if (!result || !result.tracks.length) {
     throw new Error(
       "No pude leer esa playlist. Comprueba que sea pública y vuelve a intentarlo.",
