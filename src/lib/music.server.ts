@@ -50,7 +50,7 @@ async function fetchViaApi(playlistId: string, token: string) {
   const tracks: PlaylistTrack[] = [];
   let url:
     | string
-    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&fields=next,items(track(name,artists(name),album(images)))`;
+    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=US`;
 
   while (url && tracks.length < 5000) {
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
