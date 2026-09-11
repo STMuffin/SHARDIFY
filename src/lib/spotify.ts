@@ -48,25 +48,22 @@ export type UserPlaylist = {
   owner: string;
 };
 
-async function fetchPlaylistTrackCount(id: string, accessToken: string): Promise<number> {
-  const res = await fetch(
-    `https://api.spotify.com/v1/playlists/${id}?fields=tracks(total),items(total)`,
-    { headers: { authorization: `Bearer ${accessToken}` } },
-  );
-  if (!res.ok) return 0;
-  const data = (await res.json()) as {
-    tracks?: { total?: number } | null;
-    items?: { total?: number } | null;
-  };
-  return data.tracks?.total ?? data.items?.total ?? 0;
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-/** Every playlist the logged-in account can read (created + followed). */
-export async function fetchUserPlaylists(accessToken: string): Promise<UserPlaylist[]> {
-  const playlists: UserPlaylist[] = [];
-  let url: string | null = "https://api.spotify.com/v1/me/playlists?limit=50";
-  while (url && playlists.length < 500) {
+async function fetchSpotifyJson<T>(url: string, accessToken: string): Promise<T> {
+  let attempt = 0;
+  while (attempt < 4) {
     const res = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (res.status === 429) {
+      attempt += 1;
+      if (attempt >= 4) {
+        throw new Error("Spotify está saturado por ahora. Espera unos segundos y vuelve a intentarlo.");
+      }
+      await sleep(1000 * attempt * 2);
+      continue;
+    }
     if (!res.ok) {
       let payload: string | undefined;
       try {
@@ -81,7 +78,26 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
       const detail = payload ? ` (${payload.slice(0, 180)})` : "";
       throw new Error(`No pude leer tus playlists de Spotify${detail}`);
     }
-    const page = (await res.json()) as {
+    return (await res.json()) as T;
+  }
+  throw new Error("Spotify está saturado por ahora. Espera unos segundos y vuelve a intentarlo.");
+}
+
+async function fetchPlaylistTrackCount(id: string, accessToken: string): Promise<number> {
+  const data = await fetchSpotifyJson<{
+    tracks?: { total?: number } | null;
+    items?: { total?: number } | null;
+  }>(`https://api.spotify.com/v1/playlists/${id}?fields=tracks(total),items(total)`, accessToken);
+  return data.tracks?.total ?? data.items?.total ?? 0;
+}
+
+/** Every playlist the logged-in account can read (created + followed). */
+export async function fetchUserPlaylists(accessToken: string): Promise<UserPlaylist[]> {
+  const playlists: UserPlaylist[] = [];
+  let url: string | null = "https://api.spotify.com/v1/me/playlists?limit=50";
+
+  while (url && playlists.length < 500) {
+    const page = await fetchSpotifyJson<{
       next: string | null;
       items: {
         id?: string;
@@ -91,14 +107,18 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
         items?: { total?: number };
         owner?: { display_name?: string };
       }[];
-    };
+    }>(url, accessToken);
+
+    const countById = new Map<string, number>();
     const missingCounts = (page.items ?? []).filter(
       (item) => item?.id && item.tracks?.total === undefined && item.items?.total === undefined,
     );
-    const counts = await Promise.all(
-      missingCounts.map(async (item) => [item.id!, await fetchPlaylistTrackCount(item.id!, accessToken)] as const),
-    );
-    const countById = new Map(counts);
+
+    for (const item of missingCounts) {
+      if (!item?.id) continue;
+      await sleep(150);
+      countById.set(item.id, await fetchPlaylistTrackCount(item.id, accessToken));
+    }
 
     for (const item of page.items ?? []) {
       if (!item?.id || !item.name) continue;
