@@ -47,6 +47,16 @@ export type UserPlaylist = {
   owner: string;
 };
 
+async function fetchPlaylistTrackCount(id: string, accessToken: string): Promise<number> {
+  const res = await fetch(
+    `https://api.spotify.com/v1/playlists/${id}?fields=tracks(total)`,
+    { headers: { authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) return 0;
+  const data = (await res.json()) as { tracks?: { total?: number } | null };
+  return data.tracks?.total ?? 0;
+}
+
 /** Every playlist the logged-in account can read (created + followed). */
 export async function fetchUserPlaylists(accessToken: string): Promise<UserPlaylist[]> {
   const playlists: UserPlaylist[] = [];
@@ -70,13 +80,21 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
         owner?: { display_name?: string };
       }[];
     };
+    const missingCounts = (page.items ?? []).filter(
+      (item) => item?.id && item.tracks?.total === undefined,
+    );
+    const counts = await Promise.all(
+      missingCounts.map(async (item) => [item.id!, await fetchPlaylistTrackCount(item.id!, accessToken)] as const),
+    );
+    const countById = new Map(counts);
+
     for (const item of page.items ?? []) {
       if (!item?.id || !item.name) continue;
       playlists.push({
         id: item.id,
         name: item.name,
         image: item.images?.[0]?.url ?? null,
-        tracks: item.tracks?.total ?? 0,
+        tracks: item.tracks?.total ?? countById.get(item.id) ?? 0,
         owner: item.owner?.display_name ?? "",
       });
     }
