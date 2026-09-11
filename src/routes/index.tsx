@@ -175,6 +175,35 @@ function Home() {
             </Field>
           </div>
 
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/40 p-4">
+            <button
+              type="button"
+              onClick={handleSpotify}
+              disabled={linking}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-60 ${
+                spotify
+                  ? "border border-primary/50 text-primary hover:bg-primary/10"
+                  : "bg-primary text-primary-foreground hover:brightness-110"
+              }`}
+            >
+              {linking ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : spotify ? (
+                <Check className="size-4" />
+              ) : (
+                <Music4 className="size-4" />
+              )}
+              {spotify ? "Spotify conectado" : "Conectar mi Spotify"}
+            </button>
+            <p className="flex-1 text-xs text-muted-foreground">
+              {spotify
+                ? "Se cargarán todas las canciones de la playlist, sin tope. Pulsa para desconectar."
+                : "Inicia sesión con tu cuenta para cargar playlists completas (sin el tope de 100 canciones)."}
+            </p>
+          </div>
+
+          </div>
+
           <Field label="Modo de juego">
             <div className="grid gap-3 sm:grid-cols-2">
               <ModeCard
