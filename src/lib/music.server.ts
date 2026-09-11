@@ -38,19 +38,24 @@ async function getAppToken(): Promise<string | null> {
 /** Full playlist via the official API (all pages, no size limit). */
 async function fetchViaApi(playlistId: string, token: string, fromUser = false) {
   const head = await fetch(
-    `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images`,
+    `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images,tracks(total),items(total)`,
     { headers: { authorization: `Bearer ${token}` } },
   );
   if (!head.ok) {
     console.error("[spotify] playlist head failed", head.status, await head.text());
     return null;
   }
-  const meta = (await head.json()) as { name?: string; images?: { url: string }[] };
+  const meta = (await head.json()) as {
+    name?: string;
+    images?: { url: string }[];
+    tracks?: { total?: number } | null;
+    items?: { total?: number } | null;
+  };
 
   const tracks: PlaylistTrack[] = [];
   const market = fromUser ? "from_token" : "US";
   let offset = 0;
-  let total: number | null = null;
+  let total: number | null = meta.tracks?.total ?? meta.items?.total ?? null;
 
   while (total === null || offset < total) {
     const url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=${offset}&market=${market}`;
