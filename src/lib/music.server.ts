@@ -126,13 +126,17 @@ async function fetchViaEmbed(playlistId: string) {
   }
 }
 
-export async function fetchPlaylist(input: string) {
+export async function fetchPlaylist(input: string, userToken?: string | null) {
   const id = parsePlaylistId(input);
   if (!id) throw new Error("Ese enlace no parece una playlist de Spotify.");
-  const token = await getAppToken();
-  const viaApi = token ? await fetchViaApi(id, token) : null;
+  // A logged-in user token reads the whole playlist; the app token often can't.
+  let result = userToken ? await fetchViaApi(id, userToken) : null;
+  if (!result?.tracks.length) {
+    const token = await getAppToken();
+    result = token ? await fetchViaApi(id, token) : null;
+  }
   // The API can answer with an empty list (region/market quirks); fall back then too.
-  const result = viaApi?.tracks.length ? viaApi : await fetchViaEmbed(id);
+  if (!result?.tracks.length) result = await fetchViaEmbed(id);
   if (!result || !result.tracks.length) {
     throw new Error(
       "No pude leer esa playlist. Comprueba que sea pública y vuelve a intentarlo.",
@@ -140,6 +144,7 @@ export async function fetchPlaylist(input: string) {
   }
   return result;
 }
+
 
 async function previewFromItunes(track: PlaylistTrack) {
   const term = encodeURIComponent(`${track.artist} ${track.title}`);

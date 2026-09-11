@@ -1,9 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Music4, Radio, Type } from "lucide-react";
+import { Check, Loader2, Music4, Radio, Type } from "lucide-react";
 
 import { loadPlaylist } from "@/lib/game.functions";
+import { getSpotifyClientId } from "@/lib/spotify.functions";
+import {
+  clearSession,
+  connectSpotify,
+  getSpotifyToken,
+  isSpotifyConnected,
+} from "@/lib/spotify";
 import { db, getClientKey, getSavedName, makeCode, saveName, type GameMode } from "@/lib/room";
 
 export const Route = createFileRoute("/")({
@@ -29,6 +36,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const navigate = useNavigate();
   const runLoadPlaylist = useServerFn(loadPlaylist);
+  const runClientId = useServerFn(getSpotifyClientId);
 
   const [name, setName] = useState("");
   const [playlist, setPlaylist] = useState("");
@@ -38,8 +46,34 @@ function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [spotify, setSpotify] = useState(false);
+  const [linking, setLinking] = useState(false);
 
-  useEffect(() => setName(getSavedName()), []);
+  useEffect(() => {
+    setName(getSavedName());
+    setSpotify(isSpotifyConnected());
+    runClientId().then((r) => setClientId(r.clientId)).catch(() => setClientId(null));
+  }, [runClientId]);
+
+  async function handleSpotify() {
+    setError(null);
+    if (spotify) {
+      clearSession();
+      setSpotify(false);
+      return;
+    }
+    if (!clientId) return setError("Spotify no está configurado en la app.");
+    setLinking(true);
+    try {
+      await connectSpotify(clientId);
+      setSpotify(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo conectar con Spotify.");
+    } finally {
+      setLinking(false);
+    }
+  }
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -48,8 +82,11 @@ function Home() {
     if (!playlist.trim()) return setError("Pega el enlace de una playlist de Spotify.");
     setLoading(true);
     try {
-      const data = await runLoadPlaylist({ data: { url: playlist.trim() } });
+      const accessToken = await getSpotifyToken(clientId);
+      setSpotify(Boolean(accessToken));
+      const data = await runLoadPlaylist({ data: { url: playlist.trim(), accessToken } });
       if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+
 
       const code = makeCode();
       const hostKey = getClientKey();
@@ -137,6 +174,35 @@ function Home() {
               />
             </Field>
           </div>
+
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/40 p-4">
+            <button
+              type="button"
+              onClick={handleSpotify}
+              disabled={linking}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-60 ${
+                spotify
+                  ? "border border-primary/50 text-primary hover:bg-primary/10"
+                  : "bg-primary text-primary-foreground hover:brightness-110"
+              }`}
+            >
+              {linking ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : spotify ? (
+                <Check className="size-4" />
+              ) : (
+                <Music4 className="size-4" />
+              )}
+              {spotify ? "Spotify conectado" : "Conectar mi Spotify"}
+            </button>
+            <p className="flex-1 text-xs text-muted-foreground">
+              {spotify
+                ? "Se cargarán todas las canciones de la playlist, sin tope. Pulsa para desconectar."
+                : "Inicia sesión con tu cuenta para cargar playlists completas (sin el tope de 100 canciones)."}
+            </p>
+          </div>
+
+
 
           <Field label="Modo de juego">
             <div className="grid gap-3 sm:grid-cols-2">

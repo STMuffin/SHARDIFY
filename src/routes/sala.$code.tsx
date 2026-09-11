@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
+import { getSpotifyClientId } from "@/lib/spotify.functions";
+import { getSpotifyToken } from "@/lib/spotify";
 import { isClose, nearMissHint } from "@/lib/match";
 import {
   db,
@@ -40,6 +42,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const runFindTracks = useServerFn(findPlayableTracks);
   const runLoadPlaylist = useServerFn(loadPlaylist);
+  const runClientId = useServerFn(getSpotifyClientId);
 
   const [clientKey, setClientKey] = useState("");
   const [room, setRoom] = useState<RoomRow | null>(null);
@@ -236,7 +239,9 @@ function RoomPage() {
     setBusy(true);
     setError(null);
     try {
-      const data = await runLoadPlaylist({ data: { url: url.trim() } });
+      const { clientId } = await runClientId();
+      const accessToken = await getSpotifyToken(clientId);
+      const data = await runLoadPlaylist({ data: { url: url.trim(), accessToken } });
       if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
       await db
         .from("rooms")
