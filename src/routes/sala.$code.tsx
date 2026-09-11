@@ -81,46 +81,23 @@ function RoomPage() {
   }, []);
 
   const loadRoom = useCallback(async () => {
-    try {
-      const { data, error } = await db
-        .from("rooms")
-        .select("*")
-        .eq("code", code.toUpperCase())
-        .maybeSingle();
-      if (error) {
-        throw error;
-      }
-      if (!data) {
-        setNotFound(true);
-        return null;
-      }
-      setRoom(data as RoomRow);
-      return data as RoomRow;
-    } catch (err) {
-      setError(getErrorMessage(err, "No se pudo cargar la sala."));
-      setNotFound(false);
+    const { data } = await db.from("rooms").select("*").eq("code", code.toUpperCase()).maybeSingle();
+    if (!data) {
+      setNotFound(true);
       return null;
     }
+    setRoom(data as RoomRow);
+    return data as RoomRow;
   }, [code]);
 
   const loadPlayers = useCallback(async (roomId: string) => {
-    try {
-      const { data, error } = await db.from("players").select("*").eq("room_id", roomId).order("created_at");
-      if (error) throw error;
-      setPlayers((data ?? []) as PlayerRow[]);
-    } catch (err) {
-      setError(getErrorMessage(err, "No se pudo cargar la lista de jugadores."));
-    }
+    const { data } = await db.from("players").select("*").eq("room_id", roomId).order("created_at");
+    setPlayers((data ?? []) as PlayerRow[]);
   }, []);
 
   const loadGuesses = useCallback(async (roomId: string) => {
-    try {
-      const { data, error } = await db.from("guesses").select("*").eq("room_id", roomId);
-      if (error) throw error;
-      setGuesses((data ?? []) as GuessRow[]);
-    } catch (err) {
-      setError(getErrorMessage(err, "No se pudieron cargar las respuestas."));
-    }
+    const { data } = await db.from("guesses").select("*").eq("room_id", roomId);
+    setGuesses((data ?? []) as GuessRow[]);
   }, []);
 
   useEffect(() => {
@@ -1245,15 +1222,6 @@ function RoundView({
       )}
     </div>
   );
-}
-
-function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message) return message;
-  }
-  return fallback;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
