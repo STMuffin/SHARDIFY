@@ -77,7 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Blind Beat — Blind test multijugador con playlists de Spotify" },
+      { title: "SHARDIFY — Blind test multijugador con playlists de Spotify" },
       {
         name: "description",
         content:

@@ -7,9 +7,9 @@ export const Route = createFileRoute("/spotify/callback")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Conectando Spotify — Blind Beat" },
+      { title: "Conectando Spotify — SHARDIFY" },
       { name: "description", content: "Ventana de conexión con tu cuenta de Spotify." },
-      { property: "og:title", content: "Conectando Spotify — Blind Beat" },
+      { property: "og:title", content: "Conectando Spotify — SHARDIFY" },
       { property: "og:description", content: "Ventana de conexión con tu cuenta de Spotify." },
       { name: "robots", content: "noindex" },
     ],

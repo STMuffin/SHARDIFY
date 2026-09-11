@@ -33,12 +33,12 @@ export const Route = createFileRoute("/sala/$code")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Sala de juego — Blind Beat" },
+      { title: "Sala de juego — SHARDIFY" },
       {
         name: "description",
-        content: "Sala multijugador de Blind Beat: adivina canciones de la playlist antes que nadie.",
+        content: "Sala multijugador de SHARDIFY: adivina canciones de la playlist antes que nadie.",
       },
-      { property: "og:title", content: "Sala de juego — Blind Beat" },
+      { property: "og:title", content: "Sala de juego — SHARDIFY" },
       { property: "og:description", content: "Entra con el código y juega al blind test con tus amigos." },
       { name: "robots", content: "noindex" },
     ],
@@ -665,7 +665,7 @@ function RoomPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <Link to="/" className="font-display text-lg font-bold text-gradient">
-            Blind Beat
+            SHARDIFY
           </Link>
           <p className="text-sm text-muted-foreground">{room.playlist_name}</p>
         </div>

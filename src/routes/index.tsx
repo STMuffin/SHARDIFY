@@ -29,13 +29,13 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Blind Beat — Blind test multijugador con playlists de Spotify" },
+      { title: "SHARDIFY — Blind test multijugador con playlists de Spotify" },
       {
         name: "description",
         content:
           "Crea una sala, pega cualquier playlist de Spotify y compite adivinando canciones: escribe el título y el artista o elige entre cuatro opciones.",
       },
-      { property: "og:title", content: "Blind Beat — Blind test multijugador" },
+      { property: "og:title", content: "SHARDIFY — Blind test multijugador" },
       {
         property: "og:description",
         content: "Salas en vivo, playlists de Spotify y canciones aleatorias en cada partida.",
@@ -228,7 +228,7 @@ function Home() {
           <Radio className="size-3.5 text-primary" /> Blind test en vivo
         </span>
         <h1 className="mt-6 text-5xl font-bold sm:text-7xl">
-          <span className="text-gradient">Blind Beat</span>
+          <span className="text-gradient">SHARDIFY</span>
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
           Pega cualquier playlist de Spotify, invita a tus amigos con un código y adivina canciones
