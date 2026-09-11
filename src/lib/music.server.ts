@@ -49,28 +49,35 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
 
   const tracks: PlaylistTrack[] = [];
   const market = fromUser ? "from_token" : "US";
-  let url:
-    | string
-    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=${market}`;
+  let offset = 0;
+  let total: number | null = null;
 
-  while (url) {
+  while (total === null || offset < total) {
+    const url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=${offset}&market=${market}`;
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) {
       console.error("[spotify] tracks page failed", res.status, await res.text());
       break;
     }
     const page = (await res.json()) as {
+      total?: number;
       next: string | null;
       items: {
-        track: {
+        track?: {
+          name?: string;
+          artists?: { name: string }[];
+          album?: { images?: { url: string }[] };
+        } | null;
+        item?: {
           name?: string;
           artists?: { name: string }[];
           album?: { images?: { url: string }[] };
         } | null;
       }[];
     };
+    total = page.total ?? total;
     for (const item of page.items ?? []) {
-      const t = item.track;
+      const t = item.track ?? item.item;
       if (!t?.name || !t.artists?.length) continue;
       tracks.push({
         title: t.name,
@@ -78,7 +85,9 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
         cover: t.album?.images?.[0]?.url ?? null,
       });
     }
-    url = page.next;
+    if (!page.items?.length) break;
+    offset += page.items.length;
+    if (total === null && !page.next) break;
   }
 
   return {
@@ -162,13 +171,9 @@ export async function fetchPlaylists(inputs: string[], userToken?: string | null
       : new Error("No pude leer esas playlists.");
   }
 
-  const seen = new Set<string>();
   const tracks: PlaylistTrack[] = [];
   for (const part of parts) {
     for (const track of part.tracks) {
-      const key = `${track.title.toLowerCase()}|${track.artist.toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
       tracks.push(track);
     }
   }
