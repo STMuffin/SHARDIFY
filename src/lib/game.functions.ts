@@ -8,13 +8,16 @@ export type LoadedPlaylist = {
 
 /** Reads every song of a public Spotify playlist (no login needed). */
 export const loadPlaylist = createServerFn({ method: "POST" })
-  .inputValidator((data: { url: string }) => {
+  .inputValidator((data: { url: string; accessToken?: string | null }) => {
     if (!data?.url || typeof data.url !== "string") throw new Error("Falta el enlace de la playlist.");
-    return { url: data.url };
+    return {
+      url: data.url,
+      accessToken: typeof data.accessToken === "string" ? data.accessToken : null,
+    };
   })
   .handler(async ({ data }): Promise<LoadedPlaylist> => {
     const { fetchPlaylist } = await import("./music.server");
-    const result = await fetchPlaylist(data.url);
+    const result = await fetchPlaylist(data.url, data.accessToken);
     return result;
   });
 
