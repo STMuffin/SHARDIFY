@@ -82,13 +82,28 @@ function Home() {
     setPlaylistsLoading(true);
     void (async () => {
       try {
+        if (!clientId) {
+          if (!cancelled) {
+            setSpotify(false);
+            setPlaylists([]);
+            setError("Spotify no está configurado en esta app. Vuelve a conectar con una clave válida.");
+          }
+          return;
+        }
         const token = await getSpotifyToken(clientId);
         if (!token) {
-          if (!cancelled) setSpotify(false);
+          if (!cancelled) {
+            setSpotify(false);
+            setPlaylists([]);
+            setError("La sesión de Spotify caducó. Vuelve a conectar para ver tus playlists.");
+          }
           return;
         }
         const list = await fetchUserPlaylists(token);
-        if (!cancelled) setPlaylists(list);
+        if (!cancelled) {
+          setPlaylists(list);
+          setError(null);
+        }
       } catch (err) {
         if (!cancelled) {
           setPlaylists([]);

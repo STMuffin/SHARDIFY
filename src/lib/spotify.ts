@@ -68,11 +68,18 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
   while (url && playlists.length < 500) {
     const res = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
+      let payload: string | undefined;
+      try {
+        payload = await res.text();
+      } catch {
+        payload = undefined;
+      }
       if (res.status === 401) {
         clearSession();
         throw new Error("La sesión de Spotify caducó. Vuelve a conectar.");
       }
-      throw new Error("No pude leer tus playlists de Spotify.");
+      const detail = payload ? ` (${payload.slice(0, 180)})` : "";
+      throw new Error(`No pude leer tus playlists de Spotify${detail}`);
     }
     const page = (await res.json()) as {
       next: string | null;
@@ -229,6 +236,11 @@ export async function getSpotifyToken(clientId: string | null): Promise<string |
     return null;
   }
   return fresh.accessToken;
+}
+
+export function isSpotifySessionExpired(): boolean {
+  const session = readSession();
+  return Boolean(session && session.expiresAt <= Date.now());
 }
 
 /** Opens the Spotify consent popup and resolves once the session is stored. */
