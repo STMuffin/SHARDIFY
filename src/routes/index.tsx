@@ -141,7 +141,7 @@ function Home() {
       ...[...selected].map(playlistUrl),
       ...(playlist.trim() ? [playlist.trim()] : []),
     ];
-    if (!urls.length) {
+    if (mode !== "blend" && !urls.length) {
       return setError(
         spotify
           ? "Elige una o más playlists, o pega un enlace."
@@ -150,11 +150,18 @@ function Home() {
     }
     setLoading(true);
     try {
-      const accessToken = await getSpotifyToken(clientId);
-      setSpotify(Boolean(accessToken));
-      const data = await runLoadPlaylist({ data: { urls, accessToken } });
-      if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+      let data: { name: string; image: string | null; tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[] } = {
+        name: "Blend de jugadores",
+        image: null,
+        tracks: [],
+      };
 
+      if (mode !== "blend") {
+        const accessToken = await getSpotifyToken(clientId);
+        setSpotify(Boolean(accessToken));
+        data = await runLoadPlaylist({ data: { urls, accessToken } });
+        if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+      }
 
       const code = makeCode();
       const hostKey = getClientKey();
@@ -165,9 +172,10 @@ function Home() {
         .insert({
           code,
           host_key: hostKey,
-          playlist_name: mode === "owner" ? "Playlists de jugadores" : data.name,
-          playlist_image: mode === "owner" ? null : data.image,
-          tracks: mode === "owner" ? [] : data.tracks,
+          playlist_name:
+            mode === "owner" ? "Playlists de jugadores" : mode === "blend" ? "Blend de jugadores" : data.name,
+          playlist_image: mode === "owner" || mode === "blend" ? null : data.image,
+          tracks: mode === "owner" || mode === "blend" ? [] : data.tracks,
           rounds,
           seconds,
           mode,
@@ -190,7 +198,7 @@ function Home() {
         client_key: hostKey,
         is_host: true,
         ...(teamBattle ? { team: "rojo" } : {}),
-        ...(mode === "owner"
+        ...(mode === "owner" || mode === "blend"
           ? { playlist_name: data.name, playlist_tracks: data.tracks }
           : {}),
       };
@@ -329,6 +337,13 @@ function Home() {
                 icon={<Radio className="size-5" />}
                 title="Cronología"
                 description="Escucha una canción y decide si salió antes o después de otra."
+              />
+              <ModeCard
+                active={mode === "blend"}
+                onClick={() => setMode("blend")}
+                icon={<Radio className="size-5" />}
+                title="Blend"
+                description="Cada jugador sube su playlist y la app genera una mezcla común para adivinar canciones."
               />
               <ModeCard
                 active={mode === "owner"}
