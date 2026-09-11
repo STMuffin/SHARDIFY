@@ -56,11 +56,11 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
 
   const tracks: PlaylistTrack[] = [];
   const market = fromUser ? "from_token" : "US";
-  let offset = 0;
+  let nextUrl: string | null = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=50&market=${market}`;
   let total: number | null = meta.tracks?.total ?? meta.items?.total ?? null;
 
-  while (total === null || offset < total) {
-    const url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=50&offset=${offset}&market=${market}`;
+  while (nextUrl) {
+    const url = nextUrl;
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) {
       console.error("[spotify] tracks page failed", res.status, await res.text());
@@ -68,7 +68,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
     }
     const page = (await res.json()) as {
       total?: number;
-      next: string | null;
+      next?: string | null;
       items: {
         track?: {
           name?: string;
@@ -94,8 +94,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
       });
     }
     if (!page.items?.length) break;
-    offset += page.items.length;
-    if (total === null && !page.next) break;
+    nextUrl = page.next ?? null;
   }
 
   return {
