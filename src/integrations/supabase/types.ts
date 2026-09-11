@@ -76,6 +76,7 @@ export type Database = {
           playlist_tracks: Json
           room_id: string
           score: number
+          team: string | null
         }
         Insert: {
           client_key: string
@@ -85,6 +86,7 @@ export type Database = {
           name: string
           room_id: string
           score?: number
+          team?: string | null
         }
         Update: {
           client_key?: string
@@ -98,6 +100,7 @@ export type Database = {
           playlist_tracks?: Json
           room_id?: string
           score?: number
+          team?: string | null
         }
         Relationships: [
           {
@@ -123,6 +126,7 @@ export type Database = {
           rounds: number
           seconds: number
           status: string
+          team_battle: boolean
           tracks: Json
         }
         Insert: {
@@ -138,6 +142,7 @@ export type Database = {
           rounds?: number
           seconds?: number
           status?: string
+          team_battle?: boolean
           tracks?: Json
         }
         Update: {
@@ -153,6 +158,7 @@ export type Database = {
           rounds?: number
           seconds?: number
           status?: string
+          team_battle?: boolean
           tracks?: Json
         }
         Relationships: []

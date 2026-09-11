@@ -15,6 +15,7 @@ export type RoomRow = {
   status: string;
   current_round: number;
   round_started_at: string | null;
+  team_battle: boolean;
 };
 
 export type PlayerRow = {
@@ -26,6 +27,7 @@ export type PlayerRow = {
   is_host: boolean;
   playlist_name: string;
   playlist_tracks: { title: string; artist: string; cover: string | null }[];
+  team: string | null;
   created_at: string;
 };
 
@@ -78,6 +80,29 @@ export function saveName(name: string) {
 export function makeCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 5 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+}
+
+export function computeRoundPoints({
+  titleCorrect,
+  artistCorrect,
+  remaining,
+  totalSeconds,
+  isOwnerGuess,
+}: {
+  titleCorrect: boolean;
+  artistCorrect: boolean;
+  remaining: number;
+  totalSeconds: number;
+  isOwnerGuess?: boolean;
+}): number {
+  if (isOwnerGuess) return titleCorrect ? 150 : 0;
+
+  const bestBase = titleCorrect && artistCorrect ? 150 : titleCorrect ? 90 : artistCorrect ? 60 : 0;
+  if (!bestBase) return 0;
+
+  const timeRatio = totalSeconds > 0 ? Math.max(0, Math.min(1, remaining / totalSeconds)) : 0.5;
+  const score = Math.round(bestBase * (0.3 + 0.7 * timeRatio));
+  return Math.min(150, Math.max(0, score));
 }
 
 export function isOwnerModeSchemaMissingError(error: unknown): boolean {

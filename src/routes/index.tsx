@@ -53,6 +53,7 @@ function Home() {
   const [name, setName] = useState("");
   const [playlist, setPlaylist] = useState("");
   const [mode, setMode] = useState<GameMode>("choice");
+  const [teamBattle, setTeamBattle] = useState(false);
   const [rounds, setRounds] = useState(10);
   const [seconds, setSeconds] = useState(30);
   const [joinCode, setJoinCode] = useState("");
@@ -170,6 +171,7 @@ function Home() {
           rounds,
           seconds,
           mode,
+          team_battle: teamBattle,
         })
         .select()
         .single();
@@ -187,6 +189,7 @@ function Home() {
         name: name.trim(),
         client_key: hostKey,
         is_host: true,
+        ...(teamBattle ? { team: "rojo" } : {}),
         ...(mode === "owner"
           ? { playlist_name: data.name, playlist_tracks: data.tracks }
           : {}),
@@ -322,6 +325,19 @@ function Home() {
               />
             </div>
           </Field>
+
+          <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold">Batalla por equipos</div>
+              <div className="text-xs text-muted-foreground">Crea dos equipos y suma puntos por equipo.</div>
+            </div>
+            <input
+              type="checkbox"
+              checked={teamBattle}
+              onChange={(e) => setTeamBattle(e.target.checked)}
+              className="h-4 w-4 accent-primary"
+            />
+          </label>
 
           <div className="grid gap-6 sm:grid-cols-2">
             <Slider

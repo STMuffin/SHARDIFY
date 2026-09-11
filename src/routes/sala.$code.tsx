@@ -15,6 +15,7 @@ import {
 } from "@/lib/spotify";
 import { isClose, nearMissHint } from "@/lib/match";
 import {
+  computeRoundPoints,
   db,
   getClientKey,
   getSavedName,
@@ -60,6 +61,7 @@ function RoomPage() {
   const [now, setNow] = useState(() => Date.now());
   const [notFound, setNotFound] = useState(false);
   const [joinName, setJoinName] = useState("");
+  const [joinTeam, setJoinTeam] = useState<"rojo" | "azul" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -231,6 +233,10 @@ function RoomPage() {
   async function handleJoin(event: React.FormEvent) {
     event.preventDefault();
     if (!room || !joinName.trim()) return;
+    if (room.team_battle && !joinTeam) {
+      setError("Elige un equipo antes de entrar a la sala.");
+      return;
+    }
     setBusy(true);
     saveName(joinName.trim());
     const { error: joinError } = await db.from("players").insert({
@@ -238,6 +244,7 @@ function RoomPage() {
       name: joinName.trim(),
       client_key: clientKey,
       is_host: room.host_key === clientKey,
+      team: room.team_battle ? joinTeam : null,
     });
     if (joinError) setError("No se pudo entrar en la sala.");
     await loadPlayers(room.id);
@@ -428,32 +435,32 @@ function RoomPage() {
 
   async function submitAnswer(payload: { text: string } | { option: string }) {
     if (!room || !me || !track || revealing || roundDone) return;
-    const factor = 0.4 + 0.6 * (remaining / seconds);
     let titleOk = false;
     let artistOk = false;
     let answer = "";
-    let base = 0;
 
     if (room.mode === "owner" && "option" in payload) {
       answer = payload.option;
       titleOk = payload.option === track.source_player_name;
       artistOk = titleOk;
-      base = titleOk ? 1000 : 0;
     } else if ("option" in payload) {
       answer = payload.option;
       titleOk = payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
-      base = titleOk ? 1000 : 0;
     } else {
       answer = payload.text.trim();
       if (!answer) return;
-      // A single chat message can match the song title or the artist.
       titleOk = !titleFound && isClose(answer, track.title);
       artistOk = !artistFound && isClose(answer, track.artist);
-      base = (titleOk ? 600 : 0) + (artistOk ? 400 : 0);
     }
 
-    const points = Math.round(base * factor);
+    const points = computeRoundPoints({
+      titleCorrect: titleOk,
+      artistCorrect: artistOk,
+      remaining,
+      totalSeconds: seconds,
+      isOwnerGuess: room.mode === "owner",
+    });
 
     await db.from("guesses").insert({
       room_id: room.id,
@@ -525,9 +532,30 @@ function RoomPage() {
             maxLength={20}
             className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
           />
+          {room.team_battle && (
+            <div className="space-y-2 text-left">
+              <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Equipo</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["rojo", "azul"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setJoinTeam(option)}
+                    className={`rounded-xl border px-3 py-2 text-sm font-bold ${
+                      joinTeam === option
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-background/40 text-muted-foreground"
+                    }`}
+                  >
+                    {option === "rojo" ? "Rojo" : "Azul"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || (room.team_battle && !joinTeam)}
             className="glow w-full rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
           >
             Entrar a jugar
@@ -539,6 +567,15 @@ function RoomPage() {
   }
 
   const ranked = [...players].sort((a, b) => b.score - a.score);
+  const teamTotals = useMemo(() => {
+    if (!room?.team_battle) return [] as { team: string; total: number }[];
+    const totals = new Map<string, number>();
+    for (const player of players) {
+      if (!player.team) continue;
+      totals.set(player.team, (totals.get(player.team) ?? 0) + player.score);
+    }
+    return [...totals.entries()].map(([team, total]) => ({ team, total })).sort((a, b) => b.total - a.total);
+  }, [players, room?.team_battle]);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10">
@@ -618,20 +655,37 @@ function RoomPage() {
           {room.status === "finished" && (
             <div className="text-center">
               <h2 className="font-display text-3xl font-bold">Fin de la partida</h2>
-              <ol className="mt-6 space-y-3 text-left">
-                {ranked.map((p, i) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3"
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
-                      {p.name}
-                    </span>
-                    <span className="font-display font-bold">{p.score} pts</span>
-                  </li>
-                ))}
-              </ol>
+              {room.team_battle ? (
+                <ol className="mt-6 space-y-3 text-left">
+                  {teamTotals.map((team, i) => (
+                    <li
+                      key={team.team}
+                      className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
+                        Equipo {team.team}
+                      </span>
+                      <span className="font-display font-bold">{team.total} pts</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <ol className="mt-6 space-y-3 text-left">
+                  {ranked.map((p, i) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
+                        {p.name}
+                      </span>
+                      <span className="font-display font-bold">{p.score} pts</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
               {isHost && (
                 <button
                   onClick={playAgain}
@@ -647,31 +701,40 @@ function RoomPage() {
 
         <aside className="panel h-fit p-6">
           <h3 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">
-            Marcador
+            {room.team_battle ? "Equipos" : "Marcador"}
           </h3>
           <ul className="mt-4 space-y-2">
-            {ranked.map((p) => {
-              const answered = guesses.some(
-                (g) => g.player_id === p.id && g.round_idx === room.current_round,
-              );
-              return (
-                <li
-                  key={p.id}
-                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
-                    p.id === me.id ? "bg-primary/10 text-foreground" : "text-muted-foreground"
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    {p.is_host && <Crown className="size-3.5 text-accent" />}
-                    {p.name}
-                    {room.status === "playing" && answered && (
-                      <span className="size-1.5 rounded-full bg-primary" />
-                    )}
-                  </span>
-                  <span className="font-display font-bold text-foreground">{p.score}</span>
-                </li>
-              );
-            })}
+            {room.team_battle
+              ? teamTotals.map((team) => (
+                  <li key={team.team} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-2">
+                      <span className="font-display font-bold text-foreground">Equipo {team.team}</span>
+                    </span>
+                    <span className="font-display font-bold text-foreground">{team.total}</span>
+                  </li>
+                ))
+              : ranked.map((p) => {
+                  const answered = guesses.some(
+                    (g) => g.player_id === p.id && g.round_idx === room.current_round,
+                  );
+                  return (
+                    <li
+                      key={p.id}
+                      className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
+                        p.id === me.id ? "bg-primary/10 text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {p.is_host && <Crown className="size-3.5 text-accent" />}
+                        {p.name}
+                        {room.status === "playing" && answered && (
+                          <span className="size-1.5 rounded-full bg-primary" />
+                        )}
+                      </span>
+                      <span className="font-display font-bold text-foreground">{p.score}</span>
+                    </li>
+                  );
+                })}
           </ul>
         </aside>
       </div>
