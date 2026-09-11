@@ -66,7 +66,6 @@ function RoomPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const [replayNonce, setReplayNonce] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const advancingRef = useRef(false);
@@ -245,9 +244,7 @@ function RoomPage() {
     }
 
     const shouldLimitPreview = room?.mode === "tries" && typeof triesPreviewSeconds === "number";
-    const datasetKey = shouldLimitPreview
-      ? `tries-${track.idx}-${triesPreviewSeconds}-${replayNonce}`
-      : `track-${track.idx}`;
+    const datasetKey = shouldLimitPreview ? `tries-${track.idx}-${triesPreviewSeconds}` : `track-${track.idx}`;
 
     if (audio.dataset["key"] !== datasetKey) {
       audio.dataset["key"] = datasetKey;
@@ -268,7 +265,7 @@ function RoomPage() {
         return () => window.clearTimeout(timeoutId);
       }
     }
-  }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length, replayNonce]);
+  }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length]);
 
   useEffect(() => {
     if (revealing || room?.status !== "playing") audioRef.current?.pause();
@@ -502,7 +499,7 @@ function RoomPage() {
       artistOk = titleOk;
     } else {
       answer = payload.text.trim();
-      if (answer.length < 2) return;
+      if (!answer) return;
       titleOk = !titleFound && isClose(answer, track.title);
       artistOk = !artistFound && isClose(answer, track.artist);
     }
@@ -694,7 +691,6 @@ function RoomPage() {
               roundPoints={roundPoints}
               roundDone={roundDone}
               onAnswer={submitAnswer}
-              onReplay={() => setReplayNonce((value) => value + 1)}
             />
           )}
 
@@ -964,7 +960,6 @@ function RoundView({
   roundPoints,
   roundDone,
   onAnswer,
-  onReplay,
 }: {
   room: RoomRow;
   track: RoundTrackRow | null;
@@ -976,7 +971,6 @@ function RoundView({
   roundPoints: number;
   roundDone: boolean;
   onAnswer: (payload: { text: string } | { option: string }) => void;
-  onReplay: () => void;
 }) {
   const [text, setText] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -1020,17 +1014,9 @@ function RoundView({
       </div>
 
       {room.mode === "tries" && !revealing && (
-        <div className="mt-4 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
-          <span>Intento {triesAttempt}/4 • escucha {triesPreview}s</span>
-          <button
-            type="button"
-            onClick={onReplay}
-            className="inline-flex items-center gap-1 rounded-lg border border-primary/40 px-2 py-1 text-primary transition hover:bg-primary/10"
-            aria-label="Volver a reproducir la pista"
-          >
-            <Volume2 className="size-3.5" /> Repetir
-          </button>
-        </div>
+        <p className="mt-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+          Intento {triesAttempt}/4 • escucha {triesPreview}s
+        </p>
       )}
 
       <div className="mt-8 flex flex-col items-center">
