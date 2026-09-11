@@ -57,8 +57,8 @@ export async function buildAuthUrl(clientId: string) {
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
-  window.sessionStorage.setItem(VERIFIER, verifier);
-  window.sessionStorage.setItem(CLIENT, clientId);
+  window.localStorage.setItem(VERIFIER, verifier);
+  window.localStorage.setItem(CLIENT, clientId);
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -70,10 +70,10 @@ export async function buildAuthUrl(clientId: string) {
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
-/** Runs inside the popup landing page. */
+/** Runs in the main window (the popup only forwards the code). */
 export async function exchangeCode(code: string): Promise<SpotifySession> {
-  const verifier = window.sessionStorage.getItem(VERIFIER);
-  const clientId = window.sessionStorage.getItem(CLIENT);
+  const verifier = window.localStorage.getItem(VERIFIER);
+  const clientId = window.localStorage.getItem(CLIENT);
   if (!verifier || !clientId) throw new Error("Falta la sesión de conexión.");
   const res = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
