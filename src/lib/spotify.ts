@@ -107,8 +107,8 @@ export async function buildAuthUrl(clientId: string) {
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
-  window.sessionStorage.setItem(VERIFIER, verifier);
-  window.sessionStorage.setItem(CLIENT, clientId);
+  window.localStorage.setItem(VERIFIER, verifier);
+  window.localStorage.setItem(CLIENT, clientId);
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -122,34 +122,39 @@ export async function buildAuthUrl(clientId: string) {
 
 /** Runs inside the popup landing page. */
 export async function exchangeCode(code: string): Promise<SpotifySession> {
-  const verifier = window.sessionStorage.getItem(VERIFIER);
-  const clientId = window.sessionStorage.getItem(CLIENT);
+  const verifier = window.localStorage.getItem(VERIFIER);
+  const clientId = window.localStorage.getItem(CLIENT);
   if (!verifier || !clientId) throw new Error("Falta la sesión de conexión.");
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri(),
-      code_verifier: verifier,
-    }),
-  });
-  const json = (await res.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    error_description?: string;
-  };
-  if (!res.ok || !json.access_token) {
-    throw new Error(json.error_description ?? "Spotify rechazó la conexión.");
+  try {
+    const res = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectUri(),
+        code_verifier: verifier,
+      }),
+    });
+    const json = (await res.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error_description?: string;
+    };
+    if (!res.ok || !json.access_token) {
+      throw new Error(json.error_description ?? "Spotify rechazó la conexión.");
+    }
+    return {
+      accessToken: json.access_token,
+      refreshToken: json.refresh_token ?? null,
+      expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000 - 60_000,
+    };
+  } finally {
+    window.localStorage.removeItem(VERIFIER);
+    window.localStorage.removeItem(CLIENT);
   }
-  return {
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token ?? null,
-    expiresAt: Date.now() + (json.expires_in ?? 3600) * 1000 - 60_000,
-  };
 }
 
 async function refresh(clientId: string, refreshToken: string): Promise<SpotifySession | null> {
