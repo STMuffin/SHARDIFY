@@ -3,6 +3,7 @@
 const STORE = "blindbeat.spotify";
 const VERIFIER = "blindbeat.spotify.verifier";
 const CLIENT = "blindbeat.spotify.client";
+const STATE = "blindbeat.spotify.state";
 
 export const SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative";
 
@@ -129,8 +130,10 @@ export async function buildAuthUrl(clientId: string) {
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
+  const state = randomString(32);
   window.localStorage.setItem(VERIFIER, verifier);
   window.localStorage.setItem(CLIENT, clientId);
+  window.localStorage.setItem(STATE, state);
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -138,15 +141,20 @@ export async function buildAuthUrl(clientId: string) {
     code_challenge_method: "S256",
     code_challenge: challenge,
     scope: SPOTIFY_SCOPES,
+    state,
   });
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
 /** Runs inside the popup landing page. */
-export async function exchangeCode(code: string): Promise<SpotifySession> {
+export async function exchangeCode(code: string, receivedState?: string | null): Promise<SpotifySession> {
   const verifier = window.localStorage.getItem(VERIFIER);
   const clientId = window.localStorage.getItem(CLIENT);
+  const storedState = window.localStorage.getItem(STATE);
   if (!verifier || !clientId) throw new Error("Falta la sesión de conexión.");
+  if (receivedState && storedState && receivedState !== storedState) {
+    throw new Error("La conexión con Spotify falló por seguridad. Inténtalo otra vez.");
+  }
   try {
     const res = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
@@ -176,6 +184,7 @@ export async function exchangeCode(code: string): Promise<SpotifySession> {
   } finally {
     window.localStorage.removeItem(VERIFIER);
     window.localStorage.removeItem(CLIENT);
+    window.localStorage.removeItem(STATE);
   }
 }
 
@@ -224,15 +233,15 @@ export async function getSpotifyToken(clientId: string | null): Promise<string |
 
 /** Opens the Spotify consent popup and resolves once the session is stored. */
 export async function connectSpotify(clientId: string): Promise<void> {
-  const popup = window.open("", "spotify-login", "width=520,height=720");
-  if (!popup) throw new Error("Permite las ventanas emergentes para conectar Spotify.");
   let url: string;
   try {
     url = await buildAuthUrl(clientId);
   } catch (err) {
-    popup.close();
     throw err;
   }
+
+  const popup = window.open(url, "spotify-login", "width=520,height=720");
+  if (!popup) throw new Error("Permite las ventanas emergentes para conectar Spotify.");
 
   const done = new Promise<void>((resolve, reject) => {
     let poll: number | undefined;
@@ -261,6 +270,5 @@ export async function connectSpotify(clientId: string): Promise<void> {
     }, 500);
   });
 
-  popup.location.href = url;
   await done;
 }

@@ -28,12 +28,13 @@ function SpotifyCallback() {
     };
     const error = params.get("error");
     const code = params.get("code");
+    const state = params.get("state");
     if (error || !code) {
       setMessage("No se completó la conexión.");
       send({ error: error ?? "Falta el código de Spotify." });
       return;
     }
-    exchangeCode(code)
+    exchangeCode(code, state)
       .then((session) => {
         saveSession(session);
         setMessage("¡Listo! Ya puedes cerrar esta ventana.");
