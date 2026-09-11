@@ -137,14 +137,38 @@ export function isOwnerModeSchemaMissingError(error: unknown): boolean {
   return message.includes("column") && missingColumns.some((column) => message.includes(column));
 }
 
-export function buildBlendTracks(players: Array<{ name?: string; playlist_tracks?: Array<{ title: string; artist: string; cover: string | null; releaseDate?: string }> }>) {
-  const unique = new Map<string, { title: string; artist: string; cover: string | null; releaseDate?: string }>();
+export function buildBlendTracks(
+  players: Array<{
+    name?: string;
+    playlist_tracks?: Array<{
+      title: string;
+      artist: string;
+      cover: string | null;
+      releaseDate?: string;
+    }>;
+  }>,
+) {
+  const unique = new Map<
+    string,
+    {
+      title: string;
+      artist: string;
+      cover: string | null;
+      releaseDate?: string;
+      sourcePlayerName?: string;
+    }
+  >();
 
   for (const player of players) {
     for (const track of player.playlist_tracks ?? []) {
       const key = `${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}`;
       if (!unique.has(key)) {
-        unique.set(key, { ...track, title: track.title.trim(), artist: track.artist.trim() });
+        unique.set(key, {
+          ...track,
+          title: track.title.trim(),
+          artist: track.artist.trim(),
+          sourcePlayerName: player.name?.trim() || undefined,
+        });
       }
     }
   }
