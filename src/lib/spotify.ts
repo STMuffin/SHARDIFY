@@ -39,6 +39,56 @@ export function isSpotifyConnected(): boolean {
   return Boolean(s?.refreshToken || (s && s.expiresAt > Date.now()));
 }
 
+export type UserPlaylist = {
+  id: string;
+  name: string;
+  image: string | null;
+  tracks: number;
+  owner: string;
+};
+
+/** Every playlist the logged-in account can read (created + followed). */
+export async function fetchUserPlaylists(accessToken: string): Promise<UserPlaylist[]> {
+  const playlists: UserPlaylist[] = [];
+  let url: string | null = "https://api.spotify.com/v1/me/playlists?limit=50";
+  while (url && playlists.length < 500) {
+    const res = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        throw new Error("La sesión de Spotify caducó. Vuelve a conectar.");
+      }
+      throw new Error("No pude leer tus playlists de Spotify.");
+    }
+    const page = (await res.json()) as {
+      next: string | null;
+      items: {
+        id?: string;
+        name?: string;
+        images?: { url: string }[];
+        tracks?: { total?: number };
+        owner?: { display_name?: string };
+      }[];
+    };
+    for (const item of page.items ?? []) {
+      if (!item?.id || !item.name) continue;
+      playlists.push({
+        id: item.id,
+        name: item.name,
+        image: item.images?.[0]?.url ?? null,
+        tracks: item.tracks?.total ?? 0,
+        owner: item.owner?.display_name ?? "",
+      });
+    }
+    url = page.next;
+  }
+  return playlists;
+}
+
+export function playlistUrl(id: string) {
+  return `https://open.spotify.com/playlist/${id}`;
+}
+
 function randomString(length: number) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   const bytes = crypto.getRandomValues(new Uint8Array(length));

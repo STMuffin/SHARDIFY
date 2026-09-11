@@ -36,7 +36,7 @@ async function getAppToken(): Promise<string | null> {
 }
 
 /** Full playlist via the official API (all pages, no size limit). */
-async function fetchViaApi(playlistId: string, token: string) {
+async function fetchViaApi(playlistId: string, token: string, fromUser = false) {
   const head = await fetch(
     `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images`,
     { headers: { authorization: `Bearer ${token}` } },
@@ -48,9 +48,10 @@ async function fetchViaApi(playlistId: string, token: string) {
   const meta = (await head.json()) as { name?: string; images?: { url: string }[] };
 
   const tracks: PlaylistTrack[] = [];
+  const market = fromUser ? "from_token" : "US";
   let url:
     | string
-    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=US`;
+    | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=${market}`;
 
   while (url && tracks.length < 5000) {
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
@@ -129,20 +130,56 @@ async function fetchViaEmbed(playlistId: string) {
 export async function fetchPlaylist(input: string, userToken?: string | null) {
   const id = parsePlaylistId(input);
   if (!id) throw new Error("Ese enlace no parece una playlist de Spotify.");
-  // A logged-in user token reads the whole playlist; the app token often can't.
-  let result = userToken ? await fetchViaApi(id, userToken) : null;
+  // A logged-in user token reads the whole playlist (including private ones).
+  let result = userToken ? await fetchViaApi(id, userToken, true) : null;
   if (!result?.tracks.length) {
     const token = await getAppToken();
-    result = token ? await fetchViaApi(id, token) : null;
+    result = token ? await fetchViaApi(id, token, false) : null;
   }
   // The API can answer with an empty list (region/market quirks); fall back then too.
   if (!result?.tracks.length) result = await fetchViaEmbed(id);
   if (!result || !result.tracks.length) {
     throw new Error(
-      "No pude leer esa playlist. Comprueba que sea pública y vuelve a intentarlo.",
+      "No pude leer esa playlist. Comprueba que sea pública o inicia sesión con Spotify.",
     );
   }
   return result;
+}
+
+export async function fetchPlaylists(inputs: string[], userToken?: string | null) {
+  const unique = [...new Set(inputs.map((s) => s.trim()).filter(Boolean))];
+  if (!unique.length) throw new Error("Elige al menos una playlist.");
+
+  const settled = await Promise.allSettled(unique.map((url) => fetchPlaylist(url, userToken)));
+  const parts = settled
+    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchPlaylist>>> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  if (!parts.length) {
+    const first = settled.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    throw first?.reason instanceof Error
+      ? first.reason
+      : new Error("No pude leer esas playlists.");
+  }
+
+  const seen = new Set<string>();
+  const tracks: PlaylistTrack[] = [];
+  for (const part of parts) {
+    for (const track of part.tracks) {
+      const key = `${track.title.toLowerCase()}|${track.artist.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tracks.push(track);
+    }
+  }
+
+  const names = parts.map((p) => p.name);
+  const extra = names.length > 3 ? ` +${names.length - 3}` : "";
+  return {
+    name: names.length === 1 ? names[0]! : `${names.slice(0, 3).join(" + ")}${extra}`,
+    image: parts[0]?.image ?? null,
+    tracks,
+  };
 }
 
 

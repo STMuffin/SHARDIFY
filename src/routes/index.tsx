@@ -3,13 +3,17 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Loader2, Music4, Radio, Type } from "lucide-react";
 
+import { PlaylistPicker } from "@/components/playlist-picker";
 import { loadPlaylist } from "@/lib/game.functions";
 import { getSpotifyClientId } from "@/lib/spotify.functions";
 import {
   clearSession,
   connectSpotify,
+  fetchUserPlaylists,
   getSpotifyToken,
   isSpotifyConnected,
+  playlistUrl,
+  type UserPlaylist,
 } from "@/lib/spotify";
 import { db, getClientKey, getSavedName, makeCode, saveName, type GameMode } from "@/lib/room";
 
@@ -49,6 +53,9 @@ function Home() {
   const [clientId, setClientId] = useState<string | null>(null);
   const [spotify, setSpotify] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setName(getSavedName());
@@ -56,11 +63,53 @@ function Home() {
     runClientId().then((r) => setClientId(r.clientId)).catch(() => setClientId(null));
   }, [runClientId]);
 
+  useEffect(() => {
+    if (!spotify || !clientId) {
+      setPlaylists([]);
+      setSelected(new Set());
+      return;
+    }
+    let cancelled = false;
+    setPlaylistsLoading(true);
+    void (async () => {
+      try {
+        const token = await getSpotifyToken(clientId);
+        if (!token) {
+          if (!cancelled) setSpotify(false);
+          return;
+        }
+        const list = await fetchUserPlaylists(token);
+        if (!cancelled) setPlaylists(list);
+      } catch (err) {
+        if (!cancelled) {
+          setPlaylists([]);
+          setError(err instanceof Error ? err.message : "No pude cargar tus playlists.");
+        }
+      } finally {
+        if (!cancelled) setPlaylistsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [spotify, clientId]);
+
+  function togglePlaylist(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function handleSpotify() {
     setError(null);
     if (spotify) {
       clearSession();
       setSpotify(false);
+      setPlaylists([]);
+      setSelected(new Set());
       return;
     }
     if (!clientId) return setError("Spotify no está configurado en la app.");
@@ -79,12 +128,22 @@ function Home() {
     event.preventDefault();
     setError(null);
     if (!name.trim()) return setError("Escribe tu nombre.");
-    if (!playlist.trim()) return setError("Pega el enlace de una playlist de Spotify.");
+    const urls = [
+      ...[...selected].map(playlistUrl),
+      ...(playlist.trim() ? [playlist.trim()] : []),
+    ];
+    if (!urls.length) {
+      return setError(
+        spotify
+          ? "Elige una o más playlists, o pega un enlace."
+          : "Pega el enlace de una playlist de Spotify.",
+      );
+    }
     setLoading(true);
     try {
       const accessToken = await getSpotifyToken(clientId);
       setSpotify(Boolean(accessToken));
-      const data = await runLoadPlaylist({ data: { url: playlist.trim(), accessToken } });
+      const data = await runLoadPlaylist({ data: { urls, accessToken } });
       if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
 
 
@@ -155,25 +214,15 @@ function Home() {
             <p className="text-sm text-muted-foreground">Tú serás el anfitrión de la partida.</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tu nombre">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="DJ Ana"
-                maxLength={20}
-                className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
-              />
-            </Field>
-            <Field label="Playlist de Spotify">
-              <input
-                value={playlist}
-                onChange={(e) => setPlaylist(e.target.value)}
-                placeholder="https://open.spotify.com/playlist/..."
-                className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
-              />
-            </Field>
-          </div>
+          <Field label="Tu nombre">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="DJ Ana"
+              maxLength={20}
+              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
+            />
+          </Field>
 
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/40 p-4">
             <button
@@ -197,10 +246,28 @@ function Home() {
             </button>
             <p className="flex-1 text-xs text-muted-foreground">
               {spotify
-                ? "Se cargarán todas las canciones de la playlist, sin tope. Pulsa para desconectar."
-                : "Inicia sesión con tu cuenta para cargar playlists completas (sin el tope de 100 canciones)."}
+                ? "Elige las playlists que quieras: se cargan todas las canciones. Pulsa para desconectar."
+                : "Inicia sesión para ver tus playlists y cargarlas enteras, también las privadas."}
             </p>
           </div>
+
+          {spotify && (
+            <PlaylistPicker
+              playlists={playlists}
+              loading={playlistsLoading}
+              selected={selected}
+              onToggle={togglePlaylist}
+            />
+          )}
+
+          <Field label={spotify ? "O pega un enlace" : "Playlist de Spotify"}>
+            <input
+              value={playlist}
+              onChange={(e) => setPlaylist(e.target.value)}
+              placeholder="https://open.spotify.com/playlist/..."
+              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
+            />
+          </Field>
 
 
 
@@ -251,7 +318,11 @@ function Home() {
             className="glow inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
           >
             {loading && <Loader2 className="size-4 animate-spin" />}
-            {loading ? "Leyendo la playlist…" : "Crear sala"}
+            {loading
+              ? selected.size > 1
+                ? "Leyendo las playlists…"
+                : "Leyendo la playlist…"
+              : "Crear sala"}
           </button>
         </form>
 
@@ -277,8 +348,8 @@ function Home() {
           </form>
 
           <ul className="panel space-y-3 p-6 text-sm text-muted-foreground">
-            <li>· Funciona con playlists públicas de cualquier tamaño.</li>
-            <li>· Se cargan todas las canciones de la playlist.</li>
+            <li>· Con Spotify puedes elegir varias playlists tuyas a la vez.</li>
+            <li>· Se cargan todas las canciones, sin tope de 100.</li>
             <li>· Cada partida elige canciones al azar, nunca las mismas.</li>
             <li>· La música suena sola hasta que se acaba el tiempo.</li>
           </ul>
