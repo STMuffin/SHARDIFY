@@ -306,11 +306,13 @@ function RoomPage() {
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
       const allTracks =
         room.mode === "owner"
-          ? players.flatMap((player) =>
-              (player.playlist_tracks ?? []).map((track) => ({
-                ...track,
-                sourcePlayerName: player.name,
-              })),
+          ? shuffle(
+              players.flatMap((player) =>
+                shuffle((player.playlist_tracks ?? []).map((track) => ({
+                  ...track,
+                  sourcePlayerName: player.name,
+                }))),
+              ),
             )
           : room.tracks ?? [];
       if (room.mode === "owner" && players.some((player) => !player.playlist_tracks?.length)) {
