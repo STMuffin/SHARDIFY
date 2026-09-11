@@ -6,19 +6,24 @@ export type LoadedPlaylist = {
   tracks: { title: string; artist: string; cover: string | null }[];
 };
 
-/** Reads every song of a public Spotify playlist (no login needed). */
+/** Reads every song of one or more Spotify playlists. */
 export const loadPlaylist = createServerFn({ method: "POST" })
-  .inputValidator((data: { url: string; accessToken?: string | null }) => {
-    if (!data?.url || typeof data.url !== "string") throw new Error("Falta el enlace de la playlist.");
+  .inputValidator((data: { url?: string; urls?: string[]; accessToken?: string | null }) => {
+    const urls = [
+      ...(Array.isArray(data?.urls)
+        ? data.urls.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+        : []),
+      ...(typeof data?.url === "string" && data.url.trim() ? [data.url.trim()] : []),
+    ];
+    if (!urls.length) throw new Error("Falta el enlace de la playlist.");
     return {
-      url: data.url,
+      urls,
       accessToken: typeof data.accessToken === "string" ? data.accessToken : null,
     };
   })
   .handler(async ({ data }): Promise<LoadedPlaylist> => {
-    const { fetchPlaylist } = await import("./music.server");
-    const result = await fetchPlaylist(data.url, data.accessToken);
-    return result;
+    const { fetchPlaylists } = await import("./music.server");
+    return fetchPlaylists(data.urls, data.accessToken);
   });
 
 /** Finds playable 30s clips for a shuffled set of candidate songs. */

@@ -3,9 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
+import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
 import { getSpotifyClientId } from "@/lib/spotify.functions";
-import { getSpotifyToken } from "@/lib/spotify";
+import {
+  fetchUserPlaylists,
+  getSpotifyToken,
+  isSpotifyConnected,
+  playlistUrl,
+  type UserPlaylist,
+} from "@/lib/spotify";
 import { isClose, nearMissHint } from "@/lib/match";
 import {
   db,
@@ -234,14 +241,14 @@ function RoomPage() {
     setBusy(false);
   }
 
-  async function changePlaylist(url: string) {
-    if (!room || !url.trim()) return;
+  async function changePlaylist(urls: string[]) {
+    if (!room || !urls.length) return;
     setBusy(true);
     setError(null);
     try {
       const { clientId } = await runClientId();
       const accessToken = await getSpotifyToken(clientId);
-      const data = await runLoadPlaylist({ data: { url: url.trim(), accessToken } });
+      const data = await runLoadPlaylist({ data: { urls, accessToken } });
       if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
       await db
         .from("rooms")
@@ -615,10 +622,59 @@ function Lobby({
   total: number;
   playlistName: string;
   onStart: () => void;
-  onChangePlaylist: (url: string) => void;
+  onChangePlaylist: (urls: string[]) => void;
   error: string | null;
 }) {
+  const runClientId = useServerFn(getSpotifyClientId);
   const [newPlaylist, setNewPlaylist] = useState("");
+  const [playlists, setPlaylists] = useState<UserPlaylist[]>([]);
+  const [playlistsLoading, setPlaylistsLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const spotify = isSpotifyConnected();
+
+  useEffect(() => {
+    if (!isHost || !spotify) {
+      setPlaylists([]);
+      setSelected(new Set());
+      return;
+    }
+    let cancelled = false;
+    setPlaylistsLoading(true);
+    void (async () => {
+      try {
+        const { clientId } = await runClientId();
+        const token = await getSpotifyToken(clientId);
+        if (!token) return;
+        const list = await fetchUserPlaylists(token);
+        if (!cancelled) setPlaylists(list);
+      } catch {
+        if (!cancelled) setPlaylists([]);
+      } finally {
+        if (!cancelled) setPlaylistsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHost, spotify, runClientId]);
+
+  function togglePlaylist(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function applyPlaylists() {
+    const urls = [...[...selected].map(playlistUrl), ...(newPlaylist.trim() ? [newPlaylist.trim()] : [])];
+    if (!urls.length) return;
+    onChangePlaylist(urls);
+    setNewPlaylist("");
+    setSelected(new Set());
+  }
+
   return (
 
     <div className="text-center">
@@ -636,28 +692,37 @@ function Lobby({
         se sortean nuevas cada partida
       </p>
       {isHost && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onChangePlaylist(newPlaylist);
-            setNewPlaylist("");
-          }}
-          className="mx-auto mt-5 flex max-w-md gap-2"
-        >
-          <input
-            value={newPlaylist}
-            onChange={(e) => setNewPlaylist(e.target.value)}
-            placeholder="Pega otra playlist de Spotify…"
-            className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
-          />
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+        <div className="mx-auto mt-5 max-w-md space-y-3 text-left">
+          {spotify && (
+            <PlaylistPicker
+              playlists={playlists}
+              loading={playlistsLoading}
+              selected={selected}
+              onToggle={togglePlaylist}
+            />
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              applyPlaylists();
+            }}
+            className="flex gap-2"
           >
-            Cambiar
-          </button>
-        </form>
+            <input
+              value={newPlaylist}
+              onChange={(e) => setNewPlaylist(e.target.value)}
+              placeholder={spotify ? "O pega un enlace…" : "Pega otra playlist de Spotify…"}
+              className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+            >
+              Cambiar
+            </button>
+          </form>
+        </div>
       )}
 
       {isHost ? (
