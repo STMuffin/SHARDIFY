@@ -42,6 +42,7 @@ function RoomPage() {
   const { code } = Route.useParams();
   const runFindTracks = useServerFn(findPlayableTracks);
   const runLoadPlaylist = useServerFn(loadPlaylist);
+  const runClientId = useServerFn(getSpotifyClientId);
 
   const [clientKey, setClientKey] = useState("");
   const [room, setRoom] = useState<RoomRow | null>(null);
