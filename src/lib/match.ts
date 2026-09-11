@@ -46,10 +46,7 @@ function romanizeJapanese(value: string): string {
 }
 
 function normalizedVariants(value: string): string[] {
-  const aliases = [...value.matchAll(/\(([^)]*)\)|\[([^\]]*)\]/g)].map(
-    (match) => match[1] ?? match[2] ?? "",
-  );
-  const candidates = [value, ...aliases];
+  const candidates = [value, ...[...value.matchAll(/[\[(]([^\]\)]+)[\]\)]/g)].map((match) => match[1] ?? "")];
   return [...new Set(candidates.map((candidate) => romanizeJapanese(candidate)
     .toLowerCase()
     .normalize("NFD")
