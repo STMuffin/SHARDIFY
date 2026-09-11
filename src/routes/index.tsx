@@ -183,6 +183,9 @@ function Home() {
         }
         throw roomError;
       }
+      if (!room?.id) {
+        throw new Error("No se pudo crear la sala. Inténtalo de nuevo.");
+      }
 
       const playerPayload = {
         room_id: room.id,
