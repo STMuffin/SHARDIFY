@@ -135,37 +135,26 @@ function RoomPage() {
   const roomId = room?.id;
 
   useEffect(() => {
-    if (!roomId || typeof (db as any)?.channel !== "function") return;
-    try {
-      const channel = (db.channel(`room-${roomId}`) as any)
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-          // Large unchanged columns (tracks) are omitted from realtime payloads,
-          // so merge onto the previous row instead of replacing it.
-          (payload: { new: Partial<RoomRow> }) =>
-            setRoom((prev) => ({ ...(prev as RoomRow), ...payload.new }) as RoomRow),
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` },
-          () => void loadPlayers(roomId),
-        )
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "guesses", filter: `room_id=eq.${roomId}` },
-          () => void loadGuesses(roomId),
-        )
-        .subscribe();
-      return () => {
-        if (typeof (db as any)?.removeChannel === "function") {
-          void db.removeChannel(channel);
-        }
-      };
-    } catch (err) {
-      console.error("Realtime room subscription failed", err);
-    }
-  }, [roomId, loadPlayers, loadGuesses]);
+    if (!roomId) return;
+
+    let cancelled = false;
+    const refresh = async () => {
+      if (cancelled) return;
+      await loadRoom();
+      await loadPlayers(roomId);
+      await loadGuesses(roomId);
+    };
+
+    void refresh();
+    const id = window.setInterval(() => {
+      void refresh();
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [roomId, loadRoom, loadPlayers, loadGuesses]);
 
   // Current round track
   useEffect(() => {
