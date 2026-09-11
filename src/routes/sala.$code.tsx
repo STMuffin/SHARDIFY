@@ -75,6 +75,18 @@ function RoomPage() {
     setJoinName(getSavedName());
   }, []);
 
+  const teamTotals = useMemo(() => {
+    if (!room?.team_battle) return [] as { team: string; total: number }[];
+    const totals = new Map<string, number>();
+    for (const player of players) {
+      if (!player.team) continue;
+      totals.set(player.team, (totals.get(player.team) ?? 0) + player.score);
+    }
+    return [...totals.entries()]
+      .map(([team, total]) => ({ team, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [players, room?.team_battle]);
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 200);
     return () => window.clearInterval(id);
@@ -606,15 +618,6 @@ function RoomPage() {
   }
 
   const ranked = [...players].sort((a, b) => b.score - a.score);
-  const teamTotals = useMemo(() => {
-    if (!room?.team_battle) return [] as { team: string; total: number }[];
-    const totals = new Map<string, number>();
-    for (const player of players) {
-      if (!player.team) continue;
-      totals.set(player.team, (totals.get(player.team) ?? 0) + player.score);
-    }
-    return [...totals.entries()].map(([team, total]) => ({ team, total })).sort((a, b) => b.total - a.total);
-  }, [players, room?.team_battle]);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10">
