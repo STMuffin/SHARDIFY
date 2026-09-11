@@ -38,7 +38,7 @@ async function getAppToken(): Promise<string | null> {
 /** Full playlist via the official API (all pages, no size limit). */
 async function fetchViaApi(playlistId: string, token: string, fromUser = false) {
   const head = await fetch(
-    `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images,tracks(total),items(total)`,
+    `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images,items(total),tracks(total)`,
     { headers: { authorization: `Bearer ${token}` } },
   );
   if (!head.ok) {
@@ -58,7 +58,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
   let total: number | null = meta.tracks?.total ?? meta.items?.total ?? null;
 
   while (total === null || offset < total) {
-    const url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=${offset}&market=${market}`;
+    const url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=50&offset=${offset}&market=${market}`;
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) {
       console.error("[spotify] tracks page failed", res.status, await res.text());
