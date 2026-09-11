@@ -1,9 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Music4, Radio, Type } from "lucide-react";
+import { Check, Loader2, Music4, Radio, Type } from "lucide-react";
 
 import { loadPlaylist } from "@/lib/game.functions";
+import { getSpotifyClientId } from "@/lib/spotify.functions";
+import {
+  clearSession,
+  connectSpotify,
+  getSpotifyToken,
+  isSpotifyConnected,
+} from "@/lib/spotify";
 import { db, getClientKey, getSavedName, makeCode, saveName, type GameMode } from "@/lib/room";
 
 export const Route = createFileRoute("/")({
