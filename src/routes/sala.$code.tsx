@@ -18,6 +18,7 @@ import {
   computeRoundPoints,
   db,
   getClientKey,
+  getPreviewSecondsForAttempt,
   getSavedName,
   isOwnerModeSchemaMissingError,
   saveName,
@@ -181,10 +182,13 @@ function RoomPage() {
   const titleFound = myRoundGuesses.some((g) => g.correct_title);
   const artistFound = myRoundGuesses.some((g) => g.correct_artist);
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
+  const triesAttempt = room?.mode === "tries" ? myRoundGuesses.length : 0;
   const roundDone =
     room?.mode === "choice" || room?.mode === "owner"
       ? myRoundGuesses.length > 0
-      : titleFound && artistFound;
+      : room?.mode === "tries"
+        ? titleFound || artistFound || myRoundGuesses.length >= 4
+        : titleFound && artistFound;
   const everyoneDone = useMemo(() => {
     if (!room || room.status !== "playing" || players.length === 0) return false;
     return players.every((p) => {
@@ -192,11 +196,16 @@ function RoomPage() {
         (g) => g.player_id === p.id && g.round_idx === room.current_round,
       );
       if (room.mode === "choice" || room.mode === "owner") return mine.length > 0;
+      if (room.mode === "tries") {
+        return mine.length >= 4 || mine.some((g) => g.correct_title) || mine.some((g) => g.correct_artist);
+      }
       return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
     });
   }, [players, guesses, room]);
 
   // Audio: autoplay each round, stop when the time is over
+  const triesPreviewSeconds = room?.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myRoundGuesses.length, 3)) : null;
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -204,18 +213,30 @@ function RoomPage() {
       audio.pause();
       return;
     }
-    if (audio.dataset["idx"] !== String(track.idx)) {
-      audio.dataset["idx"] = String(track.idx);
+
+    const shouldLimitPreview = room?.mode === "tries" && typeof triesPreviewSeconds === "number";
+    const datasetKey = shouldLimitPreview ? `tries-${track.idx}-${triesPreviewSeconds}` : `track-${track.idx}`;
+
+    if (audio.dataset["key"] !== datasetKey) {
+      audio.dataset["key"] = datasetKey;
       audio.src = track.preview_url;
-      audio.loop = true;
+      audio.loop = false;
       audio.currentTime = 0;
       audio.volume = 0.9;
       audio
         .play()
         .then(() => setAudioBlocked(false))
         .catch(() => setAudioBlocked(true));
+
+      if (shouldLimitPreview) {
+        const timeoutId = window.setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+        }, triesPreviewSeconds * 1000);
+        return () => window.clearTimeout(timeoutId);
+      }
     }
-  }, [track, room?.status]);
+  }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length]);
 
   useEffect(() => {
     if (revealing || room?.status !== "playing") audioRef.current?.pause();
@@ -460,6 +481,7 @@ function RoomPage() {
       remaining,
       totalSeconds: seconds,
       isOwnerGuess: room.mode === "owner",
+      attemptIndex: room.mode === "tries" ? myRoundGuesses.length : undefined,
     });
 
     await db.from("guesses").insert({
@@ -835,7 +857,15 @@ function Lobby({
         <Stat label="Segundos" value={String(seconds)} />
         <Stat
           label="Modo"
-          value={mode === "choice" ? "Opción múltiple" : mode === "owner" ? "¿De quién es?" : "Escribir"}
+          value={
+            mode === "choice"
+              ? "Opción múltiple"
+              : mode === "owner"
+                ? "¿De quién es?"
+                : mode === "tries"
+                  ? "4 intentos"
+                  : "Escribir"
+          }
         />
       </div>
       {mode === "owner" ? (
@@ -943,6 +973,8 @@ function RoundView({
   }
 
   const progress = Math.max(0, Math.min(1, remaining / room.seconds));
+  const triesAttempt = room.mode === "tries" ? Math.min(myGuesses.length + 1, 4) : 0;
+  const triesPreview = room.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myGuesses.length, 3)) : null;
 
   return (
     <div>
@@ -960,6 +992,12 @@ function RoundView({
           style={{ width: `${progress * 100}%` }}
         />
       </div>
+
+      {room.mode === "tries" && !revealing && (
+        <p className="mt-4 text-center text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+          Intento {triesAttempt}/4 • escucha {triesPreview}s
+        </p>
+      )}
 
       <div className="mt-8 flex flex-col items-center">
         {revealing ? (
@@ -1040,6 +1078,40 @@ function RoundView({
                     {option}
                   </button>
                 ))}
+              </div>
+            )
+          ) : room.mode === "tries" ? (
+            myGuesses.length >= 4 || titleFound || artistFound ? (
+              <p className="text-center text-sm text-muted-foreground">
+                {titleFound || artistFound ? "¡Correcto!" : "Se acabaron los intentos."}
+              </p>
+            ) : (
+              <div className="rounded-2xl border border-border bg-background/40 p-4">
+                <p className="mb-4 text-center text-sm text-muted-foreground">
+                  Tienes {4 - myGuesses.length} intentos restantes. Cada fallo alarga la pista y baja los puntos.
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    onAnswer({ text });
+                    setText("");
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    autoFocus
+                    placeholder="Escribe la canción o el artista…"
+                    className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    type="submit"
+                    className="glow rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                  >
+                    Enviar
+                  </button>
+                </form>
               </div>
             )
           ) : (

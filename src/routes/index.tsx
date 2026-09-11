@@ -317,6 +317,13 @@ function Home() {
                 description="Escribe el título y el artista antes de que acabe el tiempo."
               />
               <ModeCard
+                active={mode === "tries"}
+                onClick={() => setMode("tries")}
+                icon={<Radio className="size-5" />}
+                title="4 intentos"
+                description="1s, 5s, 10s y 20s de pista; cada fallo descuenta puntos."
+              />
+              <ModeCard
                 active={mode === "owner"}
                 onClick={() => setMode("owner")}
                 icon={<Radio className="size-5" />}

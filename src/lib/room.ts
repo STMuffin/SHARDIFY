@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type GameMode = "type" | "choice" | "owner";
+export type GameMode = "type" | "choice" | "owner" | "tries";
 
 export type RoomRow = {
   id: string;
@@ -88,21 +88,39 @@ export function computeRoundPoints({
   remaining,
   totalSeconds,
   isOwnerGuess,
+  attemptIndex,
 }: {
   titleCorrect: boolean;
   artistCorrect: boolean;
   remaining: number;
   totalSeconds: number;
   isOwnerGuess?: boolean;
+  attemptIndex?: number;
 }): number {
   if (isOwnerGuess) return titleCorrect ? 150 : 0;
 
   const bestBase = titleCorrect && artistCorrect ? 150 : titleCorrect ? 90 : artistCorrect ? 60 : 0;
   if (!bestBase) return 0;
 
+  if (typeof attemptIndex === "number") {
+    const factors = [1, 0.7, 0.45, 0.25];
+    const score = Math.round(bestBase * factors[Math.min(attemptIndex, factors.length - 1)] ?? 0.25);
+    return Math.min(150, Math.max(0, score));
+  }
+
   const timeRatio = totalSeconds > 0 ? Math.max(0, Math.min(1, remaining / totalSeconds)) : 0.5;
   const score = Math.round(bestBase * (0.3 + 0.7 * timeRatio));
   return Math.min(150, Math.max(0, score));
+}
+
+export function getPreviewSecondsForAttempt(attemptIndex: number): number {
+  const durations = [1, 5, 10, 20];
+  return durations[Math.min(attemptIndex, durations.length - 1)] ?? 20;
+}
+
+export function getAttemptScoreFactor(attemptIndex: number): number {
+  const factors = [1, 0.7, 0.45, 0.25];
+  return factors[Math.min(attemptIndex, factors.length - 1)] ?? 0.25;
 }
 
 export function isOwnerModeSchemaMissingError(error: unknown): boolean {
