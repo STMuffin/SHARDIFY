@@ -36,6 +36,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const navigate = useNavigate();
   const runLoadPlaylist = useServerFn(loadPlaylist);
+  const runClientId = useServerFn(getSpotifyClientId);
 
   const [name, setName] = useState("");
   const [playlist, setPlaylist] = useState("");
@@ -45,8 +46,34 @@ function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [spotify, setSpotify] = useState(false);
+  const [linking, setLinking] = useState(false);
 
-  useEffect(() => setName(getSavedName()), []);
+  useEffect(() => {
+    setName(getSavedName());
+    setSpotify(isSpotifyConnected());
+    runClientId().then((r) => setClientId(r.clientId)).catch(() => setClientId(null));
+  }, [runClientId]);
+
+  async function handleSpotify() {
+    setError(null);
+    if (spotify) {
+      clearSession();
+      setSpotify(false);
+      return;
+    }
+    if (!clientId) return setError("Spotify no está configurado en la app.");
+    setLinking(true);
+    try {
+      await connectSpotify(clientId);
+      setSpotify(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo conectar con Spotify.");
+    } finally {
+      setLinking(false);
+    }
+  }
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
@@ -55,8 +82,11 @@ function Home() {
     if (!playlist.trim()) return setError("Pega el enlace de una playlist de Spotify.");
     setLoading(true);
     try {
-      const data = await runLoadPlaylist({ data: { url: playlist.trim() } });
+      const accessToken = await getSpotifyToken(clientId);
+      setSpotify(Boolean(accessToken));
+      const data = await runLoadPlaylist({ data: { url: playlist.trim(), accessToken } });
       if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+
 
       const code = makeCode();
       const hostKey = getClientKey();
