@@ -427,7 +427,7 @@ function Home() {
 
           <ul className="panel space-y-3 p-6 text-sm text-muted-foreground">
             <li>· Con Spotify puedes elegir varias playlists tuyas a la vez.</li>
-            <li>· Se cargan todas las canciones, sin tope de 100.</li>
+            <li>· Se cargan todas las canciones de la playlist, sin recortar la lista por defecto.</li>
             <li>· Cada partida elige canciones al azar, nunca las mismas.</li>
             <li>· La música suena sola hasta que se acaba el tiempo.</li>
           </ul>

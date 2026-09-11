@@ -39,6 +39,7 @@ async function getAppToken(): Promise<string | null> {
 
 /** Full playlist via the official API (all pages, no size limit). */
 async function fetchViaApi(playlistId: string, token: string, fromUser = false) {
+  const pageSize = 100;
   const head = await fetch(
     `https://api.spotify.com/v1/playlists/${playlistId}?fields=name,images,items(total),tracks(total)`,
     { headers: { authorization: `Bearer ${token}` } },
@@ -60,7 +61,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
   let total: number | null = meta.tracks?.total ?? meta.items?.total ?? null;
 
   while (total === null || offset < total) {
-    const url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=50&offset=${offset}&market=${market}`;
+    const url = `https://api.spotify.com/v1/playlists/${playlistId}/items?limit=${pageSize}&offset=${offset}&market=${market}`;
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) {
       console.error("[spotify] tracks page failed", res.status, await res.text());
@@ -152,19 +153,18 @@ async function fetchViaEmbed(playlistId: string) {
 export async function fetchPlaylist(input: string, userToken?: string | null) {
   const id = parsePlaylistId(input);
   if (!id) throw new Error("Ese enlace no parece una playlist de Spotify.");
-  // A logged-in user token reads the whole playlist (including private ones).
-  let result = userToken ? await fetchViaApi(id, userToken, true) : null;
-  if (!result?.tracks.length) {
-    const token = await getAppToken();
-    result = token ? await fetchViaApi(id, token, false) : null;
-  }
-  // The API can answer with an empty list (region/market quirks); fall back then too.
+
+  const apiToken = userToken ?? (await getAppToken());
+  let result = apiToken ? await fetchViaApi(id, apiToken, Boolean(userToken)) : null;
+
   if (!result?.tracks.length) result = await fetchViaEmbed(id);
+
   if (!result || !result.tracks.length) {
     throw new Error(
       "No pude leer esa playlist. Comprueba que sea pública o inicia sesión con Spotify.",
     );
   }
+
   return result;
 }
 
@@ -184,10 +184,15 @@ export async function fetchPlaylists(inputs: string[], userToken?: string | null
       : new Error("No pude leer esas playlists.");
   }
 
+  const seen = new Set<string>();
   const tracks: PlaylistTrack[] = [];
   for (const part of parts) {
     for (const track of part.tracks) {
-      tracks.push(track);
+      const key = `${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        tracks.push(track);
+      }
     }
   }
 
