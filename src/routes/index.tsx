@@ -167,19 +167,21 @@ function Home() {
         .single();
       if (roomError) throw roomError;
 
-      const { error: playerError } = await db.from("players").insert({
+      const playerPayload = {
         room_id: room.id,
         name: name.trim(),
         client_key: hostKey,
         is_host: true,
-        playlist_name: data.name,
-        playlist_tracks: data.tracks,
-      });
+        ...(mode === "owner"
+          ? { playlist_name: data.name, playlist_tracks: data.tracks }
+          : {}),
+      };
+      const { error: playerError } = await db.from("players").insert(playerPayload);
       if (playerError) throw playerError;
 
       navigate({ to: "/sala/$code", params: { code } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal, inténtalo otra vez.");
+      setError(getErrorMessage(err, "Algo salió mal, inténtalo otra vez."));
     } finally {
       setLoading(false);
     }
@@ -366,6 +368,15 @@ function Home() {
       </div>
     </main>
   );
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
