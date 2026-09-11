@@ -15,7 +15,6 @@ import {
 } from "@/lib/spotify";
 import { isClose, nearMissHint } from "@/lib/match";
 import {
-  buildBlendTracks,
   computeRoundPoints,
   db,
   getClientKey,
@@ -216,7 +215,7 @@ function RoomPage() {
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const triesAttempt = room?.mode === "tries" ? myRoundGuesses.length : 0;
   const roundDone =
-    room?.mode === "choice" || room?.mode === "owner" || room?.mode === "chronology" || room?.mode === "blend"
+    room?.mode === "choice" || room?.mode === "owner" || room?.mode === "chronology"
       ? myRoundGuesses.length > 0
       : room?.mode === "tries"
         ? titleFound || artistFound || myRoundGuesses.length >= 4
@@ -227,7 +226,7 @@ function RoomPage() {
       const mine = guesses.filter(
         (g) => g.player_id === p.id && g.round_idx === room.current_round,
       );
-      if (room.mode === "choice" || room.mode === "owner" || room.mode === "chronology" || room.mode === "blend") return mine.length > 0;
+      if (room.mode === "choice" || room.mode === "owner" || room.mode === "chronology") return mine.length > 0;
       if (room.mode === "tries") {
         return mine.length >= 4 || mine.some((g) => g.correct_title) || mine.some((g) => g.correct_artist);
       }
@@ -376,10 +375,8 @@ function RoomPage() {
                 }))),
               ),
             )
-          : room.mode === "blend"
-            ? buildBlendTracks(players)
-            : room.tracks ?? [];
-      if ((room.mode === "owner" || room.mode === "blend") && players.some((player) => !player.playlist_tracks?.length)) {
+          : room.tracks ?? [];
+      if (room.mode === "owner" && players.some((player) => !player.playlist_tracks?.length)) {
         throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
       }
       const pool = shuffle(allTracks);
@@ -862,7 +859,7 @@ function Lobby({
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const spotify = isSpotifyConnected();
-  const canUploadPlaylist = mode === "owner" || mode === "blend" || isHost;
+  const canUploadPlaylist = mode === "owner" || isHost;
 
   useEffect(() => {
     if (!canUploadPlaylist || !spotify) {
@@ -902,7 +899,7 @@ function Lobby({
   function applyPlaylists() {
     const urls = [...[...selected].map(playlistUrl), ...(newPlaylist.trim() ? [newPlaylist.trim()] : [])];
     if (!urls.length) return;
-    if (mode === "owner" || mode === "blend") onUploadPlayerPlaylist(urls);
+    if (mode === "owner") onUploadPlayerPlaylist(urls);
     else onChangePlaylist(urls);
     setNewPlaylist("");
     setSelected(new Set());
@@ -923,23 +920,20 @@ function Lobby({
           value={
             mode === "choice"
               ? "Opción múltiple"
-              : mode === "blend"
-                ? "Blend"
-                : mode === "owner"
-                  ? "¿De quién es?"
-                  : mode === "tries"
-                    ? "4 intentos"
-                    : mode === "chronology"
-                      ? "Cronología"
-                      : "Escribir"
+              : mode === "owner"
+                ? "¿De quién es?"
+                : mode === "tries"
+                  ? "4 intentos"
+                  : mode === "chronology"
+                    ? "Cronología"
+                  : "Escribir"
           }
         />
       </div>
-      {mode === "owner" || mode === "blend" ? (
+      {mode === "owner" ? (
         <p className="mt-4 text-xs text-muted-foreground">
-          {mode === "blend"
-            ? "La app crea una mezcla con las playlists de todos los jugadores."
-            : `${players.filter((player) => player.playlist_tracks?.length).length}/${players.length} jugadores ya cargaron su playlist.`}
+          {players.filter((player) => player.playlist_tracks?.length).length}/{players.length} jugadores
+          ya cargaron su playlist.
         </p>
       ) : (
         <p className="mt-4 text-xs text-muted-foreground">
@@ -975,7 +969,7 @@ function Lobby({
               disabled={busy}
               className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
             >
-              {mode === "owner" || mode === "blend" ? "Cargar playlist" : "Cambiar"}
+              {mode === "owner" ? "Cargar playlist" : "Cambiar"}
             </button>
           </form>
         </div>
@@ -984,7 +978,7 @@ function Lobby({
       {isHost ? (
         <button
           onClick={onStart}
-          disabled={busy || ((mode === "owner" || mode === "blend") && players.some((player) => !player.playlist_tracks?.length))}
+          disabled={busy || (mode === "owner" && players.some((player) => !player.playlist_tracks?.length))}
           className="glow mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
         >
           <Play className="size-4" /> Empezar partida
@@ -1140,7 +1134,7 @@ function RoundView({
                 </div>
               )}
             </div>
-          ) : room.mode === "choice" || room.mode === "chronology" || room.mode === "blend" ? (
+          ) : room.mode === "choice" || room.mode === "chronology" ? (
             myGuesses.length > 0 ? (
               <p className="text-center text-sm text-muted-foreground">
                 Respuesta enviada. Espera al resto…

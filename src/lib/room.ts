@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology" | "blend";
+export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology";
 
 export type RoomRow = {
   id: string;
@@ -135,21 +135,6 @@ export function isOwnerModeSchemaMissingError(error: unknown): boolean {
 
   const missingColumns = ["playlist_name", "playlist_tracks", "source_player_name"];
   return message.includes("column") && missingColumns.some((column) => message.includes(column));
-}
-
-export function buildBlendTracks(players: Array<{ name?: string; playlist_tracks?: Array<{ title: string; artist: string; cover: string | null; releaseDate?: string }> }>) {
-  const unique = new Map<string, { title: string; artist: string; cover: string | null; releaseDate?: string }>();
-
-  for (const player of players) {
-    for (const track of player.playlist_tracks ?? []) {
-      const key = `${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}`;
-      if (!unique.has(key)) {
-        unique.set(key, { ...track, title: track.title.trim(), artist: track.artist.trim() });
-      }
-    }
-  }
-
-  return [...unique.values()];
 }
 
 export function shuffle<T>(items: T[]): T[] {
