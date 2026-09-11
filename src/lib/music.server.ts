@@ -4,6 +4,7 @@ export type PlaylistTrack = {
   title: string;
   artist: string;
   cover: string | null;
+  sourcePlayerName?: string;
 };
 
 export type PlayableTrack = PlaylistTrack & { previewUrl: string };

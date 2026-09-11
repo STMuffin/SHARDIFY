@@ -72,6 +72,8 @@ export type Database = {
           id: string
           is_host: boolean
           name: string
+          playlist_name: string
+          playlist_tracks: Json
           room_id: string
           score: number
         }
@@ -90,6 +92,10 @@ export type Database = {
           id?: string
           is_host?: boolean
           name?: string
+          playlist_name?: string
+          playlist_tracks?: Json
+          playlist_name?: string
+          playlist_tracks?: Json
           room_id?: string
           score?: number
         }
@@ -160,6 +166,7 @@ export type Database = {
           options: Json
           preview_url: string
           room_id: string
+          source_player_name: string | null
           title: string
         }
         Insert: {
@@ -170,6 +177,7 @@ export type Database = {
           options?: Json
           preview_url: string
           room_id: string
+          source_player_name?: string | null
           title: string
         }
         Update: {
@@ -180,6 +188,7 @@ export type Database = {
           options?: Json
           preview_url?: string
           room_id?: string
+          source_player_name?: string | null
           title?: string
         }
         Relationships: [

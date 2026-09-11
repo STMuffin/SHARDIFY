@@ -30,7 +30,12 @@ export const loadPlaylist = createServerFn({ method: "POST" })
 export const findPlayableTracks = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
-      candidates: { title: string; artist: string; cover: string | null }[];
+      candidates: {
+        title: string;
+        artist: string;
+        cover: string | null;
+        sourcePlayerName?: string;
+      }[];
       need: number;
     }) => {
       if (!Array.isArray(data?.candidates)) throw new Error("Faltan canciones.");

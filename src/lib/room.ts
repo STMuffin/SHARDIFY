@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type GameMode = "type" | "choice";
+export type GameMode = "type" | "choice" | "owner";
 
 export type RoomRow = {
   id: string;
@@ -24,6 +24,8 @@ export type PlayerRow = {
   client_key: string;
   score: number;
   is_host: boolean;
+  playlist_name: string;
+  playlist_tracks: { title: string; artist: string; cover: string | null }[];
   created_at: string;
 };
 
@@ -36,6 +38,7 @@ export type RoundTrackRow = {
   preview_url: string;
   cover: string | null;
   options: string[];
+  source_player_name: string | null;
 };
 
 export type GuessRow = {

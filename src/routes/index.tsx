@@ -156,9 +156,9 @@ function Home() {
         .insert({
           code,
           host_key: hostKey,
-          playlist_name: data.name,
-          playlist_image: data.image,
-          tracks: data.tracks,
+          playlist_name: mode === "owner" ? "Playlists de jugadores" : data.name,
+          playlist_image: mode === "owner" ? null : data.image,
+          tracks: mode === "owner" ? [] : data.tracks,
           rounds,
           seconds,
           mode,
@@ -172,6 +172,8 @@ function Home() {
         name: name.trim(),
         client_key: hostKey,
         is_host: true,
+        playlist_name: data.name,
+        playlist_tracks: data.tracks,
       });
       if (playerError) throw playerError;
 
@@ -286,6 +288,13 @@ function Home() {
                 icon={<Type className="size-5" />}
                 title="Escribir"
                 description="Escribe el título y el artista antes de que acabe el tiempo."
+              />
+              <ModeCard
+                active={mode === "owner"}
+                onClick={() => setMode("owner")}
+                icon={<Radio className="size-5" />}
+                title="¿De quién es?"
+                description="Cada jugador aporta una playlist y adivinan quién la eligió."
               />
             </div>
           </Field>

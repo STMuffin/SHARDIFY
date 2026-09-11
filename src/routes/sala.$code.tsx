@@ -179,14 +179,16 @@ function RoomPage() {
   const artistFound = myRoundGuesses.some((g) => g.correct_artist);
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const roundDone =
-    room?.mode === "choice" ? myRoundGuesses.length > 0 : titleFound && artistFound;
+    room?.mode === "choice" || room?.mode === "owner"
+      ? myRoundGuesses.length > 0
+      : titleFound && artistFound;
   const everyoneDone = useMemo(() => {
     if (!room || room.status !== "playing" || players.length === 0) return false;
     return players.every((p) => {
       const mine = guesses.filter(
         (g) => g.player_id === p.id && g.round_idx === room.current_round,
       );
-      if (room.mode === "choice") return mine.length > 0;
+      if (room.mode === "choice" || room.mode === "owner") return mine.length > 0;
       return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
     });
   }, [players, guesses, room]);
@@ -241,6 +243,28 @@ function RoomPage() {
     setBusy(false);
   }
 
+  async function uploadPlayerPlaylist(urls: string[]) {
+    if (!me || !urls.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { clientId } = await runClientId();
+      const accessToken = await getSpotifyToken(clientId);
+      const data = await runLoadPlaylist({ data: { urls, accessToken } });
+      if (data.tracks.length < 4) throw new Error("Esa playlist tiene muy pocas canciones.");
+      const { error: updateError } = await db
+        .from("players")
+        .update({ playlist_name: data.name, playlist_tracks: data.tracks })
+        .eq("id", me.id);
+      if (updateError) throw updateError;
+      await loadPlayers(me.room_id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No pude guardar tu playlist.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function changePlaylist(urls: string[]) {
     if (!room || !urls.length) return;
     setBusy(true);
@@ -272,7 +296,18 @@ function RoomPage() {
     setError(null);
     try {
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
-      const allTracks = room.tracks ?? [];
+      const allTracks =
+        room.mode === "owner"
+          ? players.flatMap((player) =>
+              (player.playlist_tracks ?? []).map((track) => ({
+                ...track,
+                sourcePlayerName: player.name,
+              })),
+            )
+          : room.tracks ?? [];
+      if (room.mode === "owner" && players.some((player) => !player.playlist_tracks?.length)) {
+        throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
+      }
       const pool = shuffle(allTracks);
       const candidates = pool.slice(0, Math.min(pool.length, room.rounds * 4));
       const { tracks: playable } = await runFindTracks({
@@ -281,12 +316,28 @@ function RoomPage() {
       if (!playable.length) throw new Error("No encontré audio para las canciones de esta playlist.");
 
       const rows = playable.map((t, idx) => {
-        const wrong = shuffle(
-          allTracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
-        )
-          .slice(0, 3)
-          .map((o) => `${o.title} — ${o.artist}`);
-        const options = shuffle([`${t.title} — ${t.artist}`, ...wrong]);
+        const options =
+          room.mode === "owner"
+            ? shuffle([
+                t.sourcePlayerName!,
+                ...shuffle(
+                  [
+                    ...new Set(
+                      allTracks
+                        .map((o) => o.sourcePlayerName)
+                        .filter((name): name is string => Boolean(name) && name !== t.sourcePlayerName),
+                    ),
+                  ],
+                ).slice(0, 3),
+              ])
+            : shuffle([
+                `${t.title} — ${t.artist}`,
+                ...shuffle(
+                  allTracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
+                )
+                  .slice(0, 3)
+                  .map((o) => `${o.title} — ${o.artist}`),
+              ]);
         return {
           room_id: room.id,
           idx,
@@ -295,6 +346,7 @@ function RoomPage() {
           preview_url: t.previewUrl,
           cover: t.cover,
           options,
+          source_player_name: t.sourcePlayerName ?? null,
         };
       });
 
@@ -365,7 +417,12 @@ function RoomPage() {
     let answer = "";
     let base = 0;
 
-    if ("option" in payload) {
+    if (room.mode === "owner" && "option" in payload) {
+      answer = payload.option;
+      titleOk = payload.option === track.source_player_name;
+      artistOk = titleOk;
+      base = titleOk ? 1000 : 0;
+    } else if ("option" in payload) {
       answer = payload.option;
       titleOk = payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
@@ -506,10 +563,13 @@ function RoomPage() {
               rounds={room.rounds}
               seconds={room.seconds}
               mode={room.mode}
+              players={players}
+              me={me}
               total={room.tracks?.length ?? 0}
               playlistName={room.playlist_name}
               onStart={startGame}
               onChangePlaylist={changePlaylist}
+              onUploadPlayerPlaylist={uploadPlayerPlaylist}
               error={error}
             />
 
@@ -608,10 +668,13 @@ function Lobby({
   rounds,
   seconds,
   mode,
+  players,
+  me,
   total,
   playlistName,
   onStart,
   onChangePlaylist,
+  onUploadPlayerPlaylist,
   error,
 }: {
   isHost: boolean;
@@ -619,10 +682,13 @@ function Lobby({
   rounds: number;
   seconds: number;
   mode: string;
+  players: PlayerRow[];
+  me: PlayerRow;
   total: number;
   playlistName: string;
   onStart: () => void;
   onChangePlaylist: (urls: string[]) => void;
+  onUploadPlayerPlaylist: (urls: string[]) => void;
   error: string | null;
 }) {
   const runClientId = useServerFn(getSpotifyClientId);
@@ -631,9 +697,10 @@ function Lobby({
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const spotify = isSpotifyConnected();
+  const canUploadPlaylist = mode === "owner" || isHost;
 
   useEffect(() => {
-    if (!isHost || !spotify) {
+    if (!canUploadPlaylist || !spotify) {
       setPlaylists([]);
       setSelected(new Set());
       return;
@@ -656,7 +723,7 @@ function Lobby({
     return () => {
       cancelled = true;
     };
-  }, [isHost, spotify, runClientId]);
+  }, [canUploadPlaylist, spotify, runClientId]);
 
   function togglePlaylist(id: string) {
     setSelected((prev) => {
@@ -670,7 +737,8 @@ function Lobby({
   function applyPlaylists() {
     const urls = [...[...selected].map(playlistUrl), ...(newPlaylist.trim() ? [newPlaylist.trim()] : [])];
     if (!urls.length) return;
-    onChangePlaylist(urls);
+    if (mode === "owner") onUploadPlayerPlaylist(urls);
+    else onChangePlaylist(urls);
     setNewPlaylist("");
     setSelected(new Set());
   }
@@ -685,13 +753,23 @@ function Lobby({
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <Stat label="Canciones" value={String(rounds)} />
         <Stat label="Segundos" value={String(seconds)} />
-        <Stat label="Modo" value={mode === "choice" ? "Opción múltiple" : "Escribir"} />
+        <Stat
+          label="Modo"
+          value={mode === "choice" ? "Opción múltiple" : mode === "owner" ? "¿De quién es?" : "Escribir"}
+        />
       </div>
-      <p className="mt-4 text-xs text-muted-foreground">
-        <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
-        se sortean nuevas cada partida
-      </p>
-      {isHost && (
+      {mode === "owner" ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          {players.filter((player) => player.playlist_tracks?.length).length}/{players.length} jugadores
+          ya cargaron su playlist.
+        </p>
+      ) : (
+        <p className="mt-4 text-xs text-muted-foreground">
+          <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
+          se sortean nuevas cada partida
+        </p>
+      )}
+      {canUploadPlaylist && (
         <div className="mx-auto mt-5 max-w-md space-y-3 text-left">
           {spotify && (
             <PlaylistPicker
@@ -711,7 +789,7 @@ function Lobby({
             <input
               value={newPlaylist}
               onChange={(e) => setNewPlaylist(e.target.value)}
-              placeholder={spotify ? "O pega un enlace…" : "Pega otra playlist de Spotify…"}
+              placeholder={spotify ? "O pega un enlace…" : "Pega un enlace de playlist…"}
               className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
             />
             <button
@@ -719,7 +797,7 @@ function Lobby({
               disabled={busy}
               className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
             >
-              Cambiar
+              {mode === "owner" ? "Cargar playlist" : "Cambiar"}
             </button>
           </form>
         </div>
@@ -728,7 +806,7 @@ function Lobby({
       {isHost ? (
         <button
           onClick={onStart}
-          disabled={busy}
+          disabled={busy || (mode === "owner" && players.some((player) => !player.playlist_tracks?.length))}
           className="glow mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
         >
           <Play className="size-4" /> Empezar partida
@@ -815,6 +893,11 @@ function RoundView({
             )}
             <p className="mt-4 font-display text-2xl font-bold">{track.title}</p>
             <p className="text-sm text-muted-foreground">{track.artist}</p>
+            {room.mode === "owner" && track.source_player_name && (
+              <p className="mt-3 text-sm font-bold text-primary">
+                La playlist era de {track.source_player_name}
+              </p>
+            )}
             <p
               className={`mt-4 text-sm font-bold ${
                 roundPoints > 0 ? "text-primary" : "text-muted-foreground"
@@ -838,7 +921,30 @@ function RoundView({
 
       {!revealing && (
         <div className="mt-8">
-          {room.mode === "choice" ? (
+          {room.mode === "owner" ? (
+            <div>
+              <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
+                ¿De quién es esta playlist?
+              </p>
+              {myGuesses.length > 0 ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Respuesta enviada. Espera al resto…
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {track.options.map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => onAnswer({ option })}
+                      className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : room.mode === "choice" ? (
             myGuesses.length > 0 ? (
               <p className="text-center text-sm text-muted-foreground">
                 Respuesta enviada. Espera al resto…
