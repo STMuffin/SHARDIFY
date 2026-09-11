@@ -377,7 +377,7 @@ function RoomPage() {
               ),
             )
           : room.mode === "blend"
-            ? shuffle(buildBlendTracks(players))
+            ? buildBlendTracks(players)
             : room.tracks ?? [];
       if ((room.mode === "owner" || room.mode === "blend") && players.some((player) => !player.playlist_tracks?.length)) {
         throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
@@ -936,32 +936,11 @@ function Lobby({
         />
       </div>
       {mode === "owner" || mode === "blend" ? (
-        <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/40 p-4 text-left">
-          {mode === "blend" ? (
-            <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                Mezcla de playlists
-              </p>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {players
-                  .filter((player) => player.playlist_tracks?.length)
-                  .map((player) => (
-                    <div key={player.id} className="flex items-center justify-between gap-3 rounded-lg bg-background/50 px-3 py-2">
-                      <span className="font-medium text-foreground">{player.name}</span>
-                      <span>{player.playlist_tracks?.length ?? 0} canciones</span>
-                    </div>
-                  ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                La app deduplica canciones repetidas y genera una playlist común antes de empezar.
-              </p>
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {players.filter((player) => player.playlist_tracks?.length).length}/{players.length} jugadores ya cargaron su playlist.
-            </p>
-          )}
-        </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          {mode === "blend"
+            ? "La app crea una mezcla con las playlists de todos los jugadores."
+            : `${players.filter((player) => player.playlist_tracks?.length).length}/${players.length} jugadores ya cargaron su playlist.`}
+        </p>
       ) : (
         <p className="mt-4 text-xs text-muted-foreground">
           <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
@@ -1110,11 +1089,9 @@ function RoundView({
             )}
             <p className="mt-4 font-display text-2xl font-bold">{track.title}</p>
             <p className="text-sm text-muted-foreground">{track.artist}</p>
-            {(room.mode === "owner" || room.mode === "blend") && track.source_player_name && (
+            {room.mode === "owner" && track.source_player_name && (
               <p className="mt-3 text-sm font-bold text-primary">
-                {room.mode === "blend"
-                  ? `Aportada por ${track.source_player_name}`
-                  : `La playlist era de ${track.source_player_name}`}
+                La playlist era de {track.source_player_name}
               </p>
             )}
             <p
