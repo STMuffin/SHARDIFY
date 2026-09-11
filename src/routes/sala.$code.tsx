@@ -81,23 +81,45 @@ function RoomPage() {
   }, []);
 
   const loadRoom = useCallback(async () => {
-    const { data } = await db.from("rooms").select("*").eq("code", code.toUpperCase()).maybeSingle();
-    if (!data) {
-      setNotFound(true);
+    try {
+      const { data, error } = await db.from("rooms").select("*").eq("code", code.toUpperCase()).maybeSingle();
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        setNotFound(true);
+        return null;
+      }
+      setRoom(data as RoomRow);
+      return data as RoomRow;
+    } catch (err) {
+      console.error("loadRoom failed", err);
+      setError(getErrorMessage(err, "No se pudo cargar la sala."));
+      setNotFound(false);
       return null;
     }
-    setRoom(data as RoomRow);
-    return data as RoomRow;
   }, [code]);
 
   const loadPlayers = useCallback(async (roomId: string) => {
-    const { data } = await db.from("players").select("*").eq("room_id", roomId).order("created_at");
-    setPlayers((data ?? []) as PlayerRow[]);
+    try {
+      const { data, error } = await db.from("players").select("*").eq("room_id", roomId).order("created_at");
+      if (error) throw error;
+      setPlayers((data ?? []) as PlayerRow[]);
+    } catch (err) {
+      console.error("loadPlayers failed", err);
+      setError(getErrorMessage(err, "No se pudo cargar la lista de jugadores."));
+    }
   }, []);
 
   const loadGuesses = useCallback(async (roomId: string) => {
-    const { data } = await db.from("guesses").select("*").eq("room_id", roomId);
-    setGuesses((data ?? []) as GuessRow[]);
+    try {
+      const { data, error } = await db.from("guesses").select("*").eq("room_id", roomId);
+      if (error) throw error;
+      setGuesses((data ?? []) as GuessRow[]);
+    } catch (err) {
+      console.error("loadGuesses failed", err);
+      setError(getErrorMessage(err, "No se pudieron cargar las respuestas."));
+    }
   }, []);
 
   useEffect(() => {
@@ -113,30 +135,36 @@ function RoomPage() {
   const roomId = room?.id;
 
   useEffect(() => {
-    if (!roomId) return;
-    const channel = (db.channel(`room-${roomId}`) as any)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
-        // Large unchanged columns (tracks) are omitted from realtime payloads,
-        // so merge onto the previous row instead of replacing it.
-        (payload: { new: Partial<RoomRow> }) =>
-          setRoom((prev) => ({ ...(prev as RoomRow), ...payload.new }) as RoomRow),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` },
-        () => void loadPlayers(roomId),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "guesses", filter: `room_id=eq.${roomId}` },
-        () => void loadGuesses(roomId),
-      )
-      .subscribe();
-    return () => {
-      void db.removeChannel(channel);
-    };
+    if (!roomId || typeof (db as any)?.channel !== "function") return;
+    try {
+      const channel = (db.channel(`room-${roomId}`) as any)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` },
+          // Large unchanged columns (tracks) are omitted from realtime payloads,
+          // so merge onto the previous row instead of replacing it.
+          (payload: { new: Partial<RoomRow> }) =>
+            setRoom((prev) => ({ ...(prev as RoomRow), ...payload.new }) as RoomRow),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` },
+          () => void loadPlayers(roomId),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "guesses", filter: `room_id=eq.${roomId}` },
+          () => void loadGuesses(roomId),
+        )
+        .subscribe();
+      return () => {
+        if (typeof (db as any)?.removeChannel === "function") {
+          void db.removeChannel(channel);
+        }
+      };
+    } catch (err) {
+      console.error("Realtime room subscription failed", err);
+    }
   }, [roomId, loadPlayers, loadGuesses]);
 
   // Current round track
