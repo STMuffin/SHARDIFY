@@ -15,7 +15,15 @@ import {
   playlistUrl,
   type UserPlaylist,
 } from "@/lib/spotify";
-import { db, getClientKey, getSavedName, makeCode, saveName, type GameMode } from "@/lib/room";
+import {
+  db,
+  getClientKey,
+  getSavedName,
+  isOwnerModeSchemaMissingError,
+  makeCode,
+  saveName,
+  type GameMode,
+} from "@/lib/room";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -165,7 +173,14 @@ function Home() {
         })
         .select()
         .single();
-      if (roomError) throw roomError;
+      if (roomError) {
+        if (mode === "owner" && isOwnerModeSchemaMissingError(roomError)) {
+          throw new Error(
+            "La base de datos aún no tiene la migración del modo '¿De quién es?'. Ejecuta la migración de Supabase para que funcione el modo propietario.",
+          );
+        }
+        throw roomError;
+      }
 
       const playerPayload = {
         room_id: room.id,
@@ -177,7 +192,14 @@ function Home() {
           : {}),
       };
       const { error: playerError } = await db.from("players").insert(playerPayload);
-      if (playerError) throw playerError;
+      if (playerError) {
+        if (mode === "owner" && isOwnerModeSchemaMissingError(playerError)) {
+          throw new Error(
+            "La base de datos aún no tiene las columnas del modo '¿De quién es?'. Ejecuta la migración de Supabase antes de crear la sala.",
+          );
+        }
+        throw playerError;
+      }
 
       navigate({ to: "/sala/$code", params: { code } });
     } catch (err) {

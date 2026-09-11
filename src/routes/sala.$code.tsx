@@ -18,6 +18,7 @@ import {
   db,
   getClientKey,
   getSavedName,
+  isOwnerModeSchemaMissingError,
   saveName,
   shuffle,
   type GuessRow,
@@ -256,7 +257,14 @@ function RoomPage() {
         .from("players")
         .update({ playlist_name: data.name, playlist_tracks: data.tracks })
         .eq("id", me.id);
-      if (updateError) throw updateError;
+      if (updateError) {
+        if (isOwnerModeSchemaMissingError(updateError)) {
+          throw new Error(
+            "La migración de Supabase del modo '¿De quién es?' todavía no está aplicada en esta base de datos.",
+          );
+        }
+        throw updateError;
+      }
       await loadPlayers(me.room_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pude guardar tu playlist.");
@@ -351,7 +359,14 @@ function RoomPage() {
       });
 
       const { error: insertError } = await db.from("round_tracks").insert(rows);
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (isOwnerModeSchemaMissingError(insertError)) {
+          throw new Error(
+            "La base de datos aún no tiene la columna source_player_name. Ejecuta la migración de Supabase antes de jugar en modo propietario.",
+          );
+        }
+        throw insertError;
+      }
 
       await db
         .from("rooms")

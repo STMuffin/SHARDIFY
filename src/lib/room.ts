@@ -80,6 +80,20 @@ export function makeCode(): string {
   return Array.from({ length: 5 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
 }
 
+export function isOwnerModeSchemaMissingError(error: unknown): boolean {
+  const message = (() => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "object" && error !== null && "message" in error) {
+      const value = (error as { message?: unknown }).message;
+      return typeof value === "string" ? value : "";
+    }
+    return String(error ?? "");
+  })().toLowerCase();
+
+  const missingColumns = ["playlist_name", "playlist_tracks", "source_player_name"];
+  return message.includes("column") && missingColumns.some((column) => message.includes(column));
+}
+
 export function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i--) {
