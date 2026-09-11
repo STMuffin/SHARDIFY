@@ -4,6 +4,7 @@ export type PlaylistTrack = {
   title: string;
   artist: string;
   cover: string | null;
+  releaseDate?: string;
   sourcePlayerName?: string;
 };
 
@@ -72,12 +73,12 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
         track?: {
           name?: string;
           artists?: { name: string }[];
-          album?: { images?: { url: string }[] };
+          album?: { images?: { url: string }[]; release_date?: string };
         } | null;
         item?: {
           name?: string;
           artists?: { name: string }[];
-          album?: { images?: { url: string }[] };
+          album?: { images?: { url: string }[]; release_date?: string };
         } | null;
       }[];
     };
@@ -89,6 +90,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
         title: t.name,
         artist: t.artists.map((a) => a.name).join(", "),
         cover: t.album?.images?.[0]?.url ?? null,
+        releaseDate: t.album?.release_date,
       });
     }
     if (!page.items?.length) break;
@@ -128,7 +130,12 @@ async function fetchViaEmbed(playlistId: string) {
     const tracks: PlaylistTrack[] = [];
     for (const t of list) {
       if (!t?.title || !t?.subtitle) continue;
-      tracks.push({ title: t.title, artist: t.subtitle, cover: entity?.coverArt?.sources?.[0]?.url ?? null });
+      tracks.push({
+        title: t.title,
+        artist: t.subtitle,
+        cover: entity?.coverArt?.sources?.[0]?.url ?? null,
+        releaseDate: typeof t.releaseDate === "string" ? t.releaseDate : undefined,
+      });
     }
     if (!tracks.length) return null;
 

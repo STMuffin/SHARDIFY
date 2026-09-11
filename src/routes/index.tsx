@@ -324,6 +324,13 @@ function Home() {
                 description="1s, 5s, 10s y 20s de pista; cada fallo descuenta puntos."
               />
               <ModeCard
+                active={mode === "chronology"}
+                onClick={() => setMode("chronology")}
+                icon={<Radio className="size-5" />}
+                title="Cronología"
+                description="Escucha una canción y decide si salió antes o después de otra."
+              />
+              <ModeCard
                 active={mode === "owner"}
                 onClick={() => setMode("owner")}
                 icon={<Radio className="size-5" />}

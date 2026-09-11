@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type GameMode = "type" | "choice" | "owner" | "tries";
+export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology";
 
 export type RoomRow = {
   id: string;
@@ -8,7 +8,7 @@ export type RoomRow = {
   host_key: string;
   playlist_name: string;
   playlist_image: string | null;
-  tracks: { title: string; artist: string; cover: string | null }[];
+  tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[];
   rounds: number;
   seconds: number;
   mode: string;
@@ -26,7 +26,7 @@ export type PlayerRow = {
   score: number;
   is_host: boolean;
   playlist_name: string;
-  playlist_tracks: { title: string; artist: string; cover: string | null }[];
+  playlist_tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[];
   team: string | null;
   created_at: string;
 };

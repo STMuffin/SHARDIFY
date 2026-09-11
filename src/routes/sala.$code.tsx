@@ -215,7 +215,7 @@ function RoomPage() {
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const triesAttempt = room?.mode === "tries" ? myRoundGuesses.length : 0;
   const roundDone =
-    room?.mode === "choice" || room?.mode === "owner"
+    room?.mode === "choice" || room?.mode === "owner" || room?.mode === "chronology"
       ? myRoundGuesses.length > 0
       : room?.mode === "tries"
         ? titleFound || artistFound || myRoundGuesses.length >= 4
@@ -226,7 +226,7 @@ function RoomPage() {
       const mine = guesses.filter(
         (g) => g.player_id === p.id && g.round_idx === room.current_round,
       );
-      if (room.mode === "choice" || room.mode === "owner") return mine.length > 0;
+      if (room.mode === "choice" || room.mode === "owner" || room.mode === "chronology") return mine.length > 0;
       if (room.mode === "tries") {
         return mine.length >= 4 || mine.some((g) => g.correct_title) || mine.some((g) => g.correct_artist);
       }
@@ -380,15 +380,43 @@ function RoomPage() {
         throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
       }
       const pool = shuffle(allTracks);
-      const candidates = pool.slice(0, Math.min(pool.length, room.rounds * 4));
+      const candidates = pool
+        .filter((track) => room.mode !== "chronology" || Boolean(track.releaseDate))
+        .slice(0, Math.min(pool.length, room.rounds * 4));
+      if (room.mode === "chronology" && candidates.length < 2) {
+        throw new Error("El modo Cronología necesita canciones con fecha de lanzamiento.");
+      }
       const { tracks: playable } = await runFindTracks({
         data: { candidates, need: room.rounds },
       });
       if (!playable.length) throw new Error("No encontré audio para las canciones de esta playlist.");
 
       const rows = playable.map((t, idx) => {
+        const chronologyReference =
+          room.mode === "chronology"
+            ? shuffle(
+                allTracks.filter(
+                  (candidate) => candidate.title !== t.title && Boolean(candidate.releaseDate),
+                ),
+              )[0]
+            : null;
+        const chronologyBefore = Boolean(
+          chronologyReference &&
+            t.releaseDate &&
+            chronologyReference.releaseDate &&
+            t.releaseDate < chronologyReference.releaseDate,
+        );
         const options =
-          room.mode === "owner"
+          room.mode === "chronology" && chronologyReference
+            ? [
+                chronologyBefore
+                  ? `Antes de «${chronologyReference.title}»`
+                  : `Después de «${chronologyReference.title}»`,
+                chronologyBefore
+                  ? `Después de «${chronologyReference.title}»`
+                  : `Antes de «${chronologyReference.title}»`,
+              ]
+            : room.mode === "owner"
             ? shuffle([
                 t.sourcePlayerName!,
                 ...shuffle(
@@ -499,7 +527,9 @@ function RoomPage() {
       artistOk = titleOk;
     } else if ("option" in payload) {
       answer = payload.option;
-      titleOk = payload.option === `${track.title} — ${track.artist}`;
+      titleOk = room.mode === "chronology"
+        ? payload.option === track.options[0]
+        : payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
     } else {
       answer = payload.text.trim();
@@ -894,6 +924,8 @@ function Lobby({
                 ? "¿De quién es?"
                 : mode === "tries"
                   ? "4 intentos"
+                  : mode === "chronology"
+                    ? "Cronología"
                   : "Escribir"
           }
         />
@@ -1102,13 +1134,19 @@ function RoundView({
                 </div>
               )}
             </div>
-          ) : room.mode === "choice" ? (
+          ) : room.mode === "choice" || room.mode === "chronology" ? (
             myGuesses.length > 0 ? (
               <p className="text-center text-sm text-muted-foreground">
                 Respuesta enviada. Espera al resto…
               </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                {room.mode === "chronology" && (
+                  <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
+                    ¿Esta canción salió antes o después de la referencia?
+                  </p>
+                )}
+                <div className="grid gap-3 sm:grid-cols-2">
                 {track.options.map((option) => (
                   <button
                     key={option}
@@ -1118,6 +1156,7 @@ function RoundView({
                     {option}
                   </button>
                 ))}
+                </div>
               </div>
             )
           ) : room.mode === "tries" ? (

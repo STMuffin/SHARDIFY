@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 export type LoadedPlaylist = {
   name: string;
   image: string | null;
-  tracks: { title: string; artist: string; cover: string | null }[];
+  tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[];
 };
 
 /** Reads every song of one or more Spotify playlists. */
@@ -34,6 +34,7 @@ export const findPlayableTracks = createServerFn({ method: "POST" })
         title: string;
         artist: string;
         cover: string | null;
+        releaseDate?: string;
         sourcePlayerName?: string;
       }[];
       need: number;
