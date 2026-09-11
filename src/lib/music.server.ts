@@ -53,7 +53,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
     | string
     | null = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&offset=0&market=${market}`;
 
-  while (url && tracks.length < 5000) {
+  while (url) {
     const res: Response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) {
       console.error("[spotify] tracks page failed", res.status, await res.text());
