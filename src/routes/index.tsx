@@ -202,7 +202,7 @@ function Home() {
             </p>
           </div>
 
-          </div>
+
 
           <Field label="Modo de juego">
             <div className="grid gap-3 sm:grid-cols-2">
