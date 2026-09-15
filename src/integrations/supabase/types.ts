@@ -84,6 +84,8 @@ export type Database = {
           id?: string
           is_host?: boolean
           name: string
+          playlist_name?: string
+          playlist_tracks?: Json
           room_id: string
           score?: number
           team?: string | null
@@ -94,8 +96,6 @@ export type Database = {
           id?: string
           is_host?: boolean
           name?: string
-          playlist_name?: string
-          playlist_tracks?: Json
           playlist_name?: string
           playlist_tracks?: Json
           room_id?: string
