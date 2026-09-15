@@ -245,22 +245,35 @@ function Home() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-5 py-12">
-      <header className="text-center">
-        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-          <Radio className="size-3.5 text-primary" /> Blind test en vivo
-        </span>
-        <h1 className="mt-6 text-5xl font-bold sm:text-7xl">
-          <span className="text-gradient">SHARDIFY</span>
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
-          Pega cualquier playlist de Spotify, invita a tus amigos con un código y adivina canciones
-          a contrarreloj. Cada partida sortea canciones distintas.
-        </p>
-      </header>
+    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+      <div className="grid gap-4 md:grid-cols-3 md:gap-5">
+        <section className="panel sheen rise-in col-span-full p-7 text-center sm:p-10">
+          <span className="pulse-ring inline-flex items-center gap-2 rounded-full border border-border bg-background/50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            <Radio className="size-3.5 animate-pulse text-primary" /> Blind test en vivo
+          </span>
+          <h1 className="mt-5 text-5xl font-bold sm:text-7xl">
+            <span className="title-animate">SHARDIFY</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground sm:text-base">
+            Pega cualquier playlist de Spotify, invita a tus amigos con un código y adivina canciones
+            a contrarreloj. Cada partida sortea canciones distintas.
+          </p>
+          <div className="mt-6 flex items-end justify-center gap-1">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <span
+                key={i}
+                className="equalizer-bar h-8 w-1.5 rounded-full bg-primary/70"
+                style={{ animationDelay: `${i * 90}ms` }}
+              />
+            ))}
+          </div>
+        </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <form onSubmit={handleCreate} className="panel space-y-6 p-6 sm:p-8">
+        <form
+          onSubmit={handleCreate}
+          className="panel panel-lift rise-in col-span-full space-y-6 p-6 sm:p-8 md:col-span-2 md:row-span-2"
+          style={{ animationDelay: "80ms" }}
+        >
           <div>
             <h2 className="text-2xl font-bold">Crear sala</h2>
             <p className="text-sm text-muted-foreground">Tú serás el anfitrión de la partida.</p>
@@ -272,7 +285,7 @@ function Home() {
               onChange={(e) => setName(e.target.value)}
               placeholder="DJ Ana"
               maxLength={20}
-              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
+              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
             />
           </Field>
 
@@ -281,7 +294,7 @@ function Home() {
               type="button"
               onClick={handleSpotify}
               disabled={linking}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition disabled:opacity-60 ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 disabled:opacity-60 ${
                 spotify
                   ? "border border-primary/50 text-primary hover:bg-primary/10"
                   : "bg-primary text-primary-foreground hover:brightness-110"
@@ -304,12 +317,14 @@ function Home() {
           </div>
 
           {spotify && (
-            <PlaylistPicker
-              playlists={playlists}
-              loading={playlistsLoading}
-              selected={selected}
-              onToggle={togglePlaylist}
-            />
+            <div className="pop-in">
+              <PlaylistPicker
+                playlists={playlists}
+                loading={playlistsLoading}
+                selected={selected}
+                onToggle={togglePlaylist}
+              />
+            </div>
           )}
 
           <Field label={spotify ? "O pega un enlace" : "Playlist de Spotify"}>
@@ -317,11 +332,9 @@ function Home() {
               value={playlist}
               onChange={(e) => setPlaylist(e.target.value)}
               placeholder="https://open.spotify.com/playlist/..."
-              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary"
+              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
             />
           </Field>
-
-
 
           <Field label="Modo de juego">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -370,7 +383,7 @@ function Home() {
             </div>
           </Field>
 
-          <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3">
+          <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 hover:border-primary/40">
             <div>
               <div className="text-sm font-semibold">Batalla por equipos</div>
               <div className="text-xs text-muted-foreground">Crea dos equipos y suma puntos por equipo.</div>
@@ -403,12 +416,12 @@ function Home() {
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="pop-in text-sm text-destructive">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="glow inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground transition hover:brightness-110 disabled:opacity-60"
+            className="glow inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 hover:brightness-110 disabled:opacity-60"
           >
             {loading && <Loader2 className="size-4 animate-spin" />}
             {loading
@@ -419,34 +432,40 @@ function Home() {
           </button>
         </form>
 
-        <div className="space-y-6">
-          <form onSubmit={handleJoin} className="panel space-y-5 p-6 sm:p-8">
-            <div>
-              <h2 className="text-2xl font-bold">Unirse</h2>
-              <p className="text-sm text-muted-foreground">¿Tienes un código? Entra aquí.</p>
-            </div>
-            <input
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              placeholder="ABC12"
-              maxLength={6}
-              className="w-full rounded-xl border border-input bg-background/60 px-4 py-4 text-center font-display text-3xl font-bold tracking-[0.4em] outline-none transition focus:border-primary"
-            />
-            <button
-              type="submit"
-              className="w-full rounded-xl border border-primary/50 px-6 py-3 text-sm font-bold text-primary transition hover:bg-primary/10"
-            >
-              Entrar a la sala
-            </button>
-          </form>
+        <form
+          onSubmit={handleJoin}
+          className="panel panel-lift rise-in col-span-full space-y-5 p-6 sm:p-8 md:col-span-1"
+          style={{ animationDelay: "160ms" }}
+        >
+          <div>
+            <h2 className="text-2xl font-bold">Unirse</h2>
+            <p className="text-sm text-muted-foreground">¿Tienes un código? Entra aquí.</p>
+          </div>
+          <input
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="ABC12"
+            maxLength={6}
+            className="w-full rounded-xl border border-input bg-background/60 px-4 py-4 text-center font-display text-3xl font-bold tracking-[0.4em] outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
+          />
+          <button
+            type="submit"
+            className="w-full rounded-xl border border-primary/50 px-6 py-3 text-sm font-bold text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
+          >
+            Entrar a la sala
+          </button>
+        </form>
 
-          <ul className="panel space-y-3 p-6 text-sm text-muted-foreground">
-            <li>· Con Spotify puedes elegir varias playlists tuyas a la vez.</li>
-            <li>· Se cargan todas las canciones, sin tope de 100.</li>
-            <li>· Cada partida elige canciones al azar, nunca las mismas.</li>
-            <li>· La música suena sola hasta que se acaba el tiempo.</li>
-          </ul>
-        </div>
+        <ul
+          className="panel panel-lift rise-in col-span-full space-y-3 p-6 text-sm text-muted-foreground md:col-span-1"
+          style={{ animationDelay: "240ms" }}
+        >
+          <li className="float-soft font-display text-base font-bold text-foreground">Cómo funciona</li>
+          <li>· Con Spotify puedes elegir varias playlists tuyas a la vez.</li>
+          <li>· Se cargan todas las canciones, sin tope de 100.</li>
+          <li>· Cada partida elige canciones al azar, nunca las mismas.</li>
+          <li>· La música suena sola hasta que se acaba el tiempo.</li>
+        </ul>
       </div>
     </main>
   );
