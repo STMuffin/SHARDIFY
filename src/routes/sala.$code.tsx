@@ -14,6 +14,7 @@ import {
   type UserPlaylist,
 } from "@/lib/spotify";
 import { isClose, nearMissHint } from "@/lib/match";
+import { sfx } from "@/lib/sfx";
 import {
   buildBlendTracks,
   computeRoundPoints,
@@ -234,6 +235,24 @@ function RoomPage() {
       return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
     });
   }, [players, guesses, room]);
+
+  // Countdown ticks in the last seconds of a round
+  const lastTickRef = useRef(-1);
+  useEffect(() => {
+    if (room?.status !== "playing") return;
+    const left = Math.ceil(remaining);
+    if (left > 5) {
+      lastTickRef.current = -1;
+      return;
+    }
+    if (left > 0 && lastTickRef.current !== left) {
+      lastTickRef.current = left;
+      sfx.tick();
+    } else if (left <= 0 && lastTickRef.current !== 0) {
+      lastTickRef.current = 0;
+      sfx.timeUp();
+    }
+  }, [remaining, room?.status]);
 
   // Audio: autoplay each round, stop when the time is over
   const triesPreviewSeconds = room?.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myRoundGuesses.length, 3)) : null;
