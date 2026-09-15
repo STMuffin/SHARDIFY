@@ -570,6 +570,10 @@ function RoomPage() {
       attemptIndex: room.mode === "tries" ? myRoundGuesses.length : undefined,
     });
 
+    if (titleOk && artistOk) sfx.correct();
+    else if (titleOk || artistOk) sfx.partial();
+    else sfx.wrong();
+
     try {
       await db.from("guesses").insert({
         room_id: room.id,
