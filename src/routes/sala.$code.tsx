@@ -263,6 +263,46 @@ function RoomPage() {
     }
   }, [remaining, room?.status]);
 
+  // New round starts
+  const lastRoundSoundRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!room || room.status !== "playing") return;
+    if (lastRoundSoundRef.current === room.current_round) return;
+    lastRoundSoundRef.current = room.current_round;
+    sfx.roundStart();
+  }, [room?.current_round, room?.status, room]);
+
+  // Reveal of the answer
+  const revealSoundRef = useRef(false);
+  useEffect(() => {
+    const isRevealing = room?.status === "playing" && remaining <= 0;
+    if (isRevealing && !revealSoundRef.current) {
+      revealSoundRef.current = true;
+      sfx.reveal();
+    } else if (!isRevealing) {
+      revealSoundRef.current = false;
+    }
+  }, [remaining, room?.status]);
+
+  // End of the game
+  const finishedSoundRef = useRef(false);
+  useEffect(() => {
+    if (room?.status === "finished" && !finishedSoundRef.current) {
+      finishedSoundRef.current = true;
+      sfx.victory();
+    } else if (room?.status !== "finished") {
+      finishedSoundRef.current = false;
+    }
+  }, [room?.status]);
+
+  // Someone joins the room
+  const playerCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = playerCountRef.current;
+    playerCountRef.current = players.length;
+    if (prev !== null && players.length > prev) sfx.join();
+  }, [players.length]);
+
   // Audio: autoplay each round, stop when the time is over
   const triesPreviewSeconds = room?.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myRoundGuesses.length, 3)) : null;
 
