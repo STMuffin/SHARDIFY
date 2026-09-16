@@ -243,3 +243,24 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes flash-ok {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  100% { box-shadow: 0 0 0 14px hsl(var(--primary) / 0); }
+}
+
+@utility shake {
+  animation: shake-x 0.38s ease-in-out;
+}
+
+@utility flash-ok {
+  animation: flash-ok 0.6s ease-out;
+}

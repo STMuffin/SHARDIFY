@@ -85,6 +85,36 @@ export const sfx = {
   timeUp() {
     tone({ freq: 400, duration: 0.35, type: "sawtooth", gain: 0.06, slideTo: 160 });
   },
+  /** Wrong, but very close to the answer. */
+  near() {
+    tone({ freq: 500, duration: 0.09, type: "triangle", gain: 0.05 });
+    tone({ freq: 700, duration: 0.11, type: "triangle", gain: 0.045, delay: 0.07 });
+  },
+  /** Round result being revealed. */
+  reveal() {
+    tone({ freq: 300, duration: 0.18, type: "sine", gain: 0.06, slideTo: 760 });
+    tone({ freq: 900, duration: 0.2, type: "triangle", gain: 0.05, delay: 0.14 });
+  },
+  /** New round begins. */
+  roundStart() {
+    tone({ freq: 620, duration: 0.09, type: "square", gain: 0.04 });
+    tone({ freq: 930, duration: 0.14, type: "triangle", gain: 0.05, delay: 0.08 });
+  },
+  /** Someone joined the room. */
+  join() {
+    tone({ freq: 700, duration: 0.08, type: "sine", gain: 0.05, slideTo: 1050 });
+  },
+  /** Message sent in the chat guess mode. */
+  send() {
+    tone({ freq: 760, duration: 0.06, type: "sine", gain: 0.035, slideTo: 980 });
+  },
+  /** End of the game fanfare. */
+  victory() {
+    tone({ freq: 523, duration: 0.14, type: "triangle", gain: 0.08 });
+    tone({ freq: 659, duration: 0.14, type: "triangle", gain: 0.08, delay: 0.12 });
+    tone({ freq: 784, duration: 0.16, type: "triangle", gain: 0.08, delay: 0.24 });
+    tone({ freq: 1047, duration: 0.4, type: "sine", gain: 0.08, delay: 0.38 });
+  },
   start() {
     tone({ freq: 440, duration: 0.12, type: "triangle", gain: 0.07 });
     tone({ freq: 660, duration: 0.12, type: "triangle", gain: 0.07, delay: 0.1 });
