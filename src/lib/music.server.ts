@@ -90,7 +90,7 @@ async function fetchViaApi(playlistId: string, token: string, fromUser = false) 
         title: t.name,
         artist: t.artists.map((a) => a.name).join(", "),
         cover: t.album?.images?.[0]?.url ?? null,
-        releaseDate: t.album?.release_date,
+        ...(t.album?.release_date ? { releaseDate: t.album.release_date } : {}),
       });
     }
     if (!page.items?.length) break;
