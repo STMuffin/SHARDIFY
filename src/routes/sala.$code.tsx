@@ -586,6 +586,11 @@ function RoomPage() {
 
     if (titleOk && artistOk) sfx.correct();
     else if (titleOk || artistOk) sfx.partial();
+    else if (
+      "text" in payload &&
+      nearMissHint(answer, track.title, track.artist, titleFound, artistFound)
+    )
+      sfx.near();
     else sfx.wrong();
 
     try {
