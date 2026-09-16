@@ -104,7 +104,8 @@ export function computeRoundPoints({
 
   if (typeof attemptIndex === "number") {
     const factors = [1, 0.7, 0.45, 0.25];
-    const score = Math.round(bestBase * factors[Math.min(attemptIndex, factors.length - 1)] ?? 0.25);
+    const factor = factors[Math.min(attemptIndex, factors.length - 1)] ?? 0.25;
+    const score = Math.round(bestBase * factor);
     return Math.min(150, Math.max(0, score));
   }
 
@@ -167,7 +168,7 @@ export function buildBlendTracks(
           ...track,
           title: track.title.trim(),
           artist: track.artist.trim(),
-          sourcePlayerName: player.name?.trim() || undefined,
+          ...(player.name?.trim() ? { sourcePlayerName: player.name.trim() } : {}),
         });
       }
     }

@@ -449,13 +449,17 @@ function RoomPage() {
               ]
             : room.mode === "owner"
             ? shuffle([
-                t.sourcePlayerName!,
+                (t as { sourcePlayerName?: string }).sourcePlayerName ?? "",
                 ...shuffle(
                   [
                     ...new Set(
                       allTracks
-                        .map((o) => o.sourcePlayerName)
-                        .filter((name): name is string => Boolean(name) && name !== t.sourcePlayerName),
+                        .map((o) => (o as { sourcePlayerName?: string }).sourcePlayerName)
+                        .filter(
+                          (name): name is string =>
+                            Boolean(name) &&
+                            name !== (t as { sourcePlayerName?: string }).sourcePlayerName,
+                        ),
                     ),
                   ],
                 ).slice(0, 3),
@@ -576,7 +580,7 @@ function RoomPage() {
       remaining,
       totalSeconds: seconds,
       isOwnerGuess: room.mode === "owner",
-      attemptIndex: room.mode === "tries" ? myRoundGuesses.length : undefined,
+      ...(room.mode === "tries" ? { attemptIndex: myRoundGuesses.length } : {}),
     });
 
     if (titleOk && artistOk) sfx.correct();
