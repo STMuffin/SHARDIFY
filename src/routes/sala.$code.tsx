@@ -50,6 +50,15 @@ export const Route = createFileRoute("/sala/$code")({
 
 const REVEAL_SECONDS = 6;
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
+
 function RoomPage() {
   const { code } = Route.useParams();
   const runFindTracks = useServerFn(findPlayableTracks);
