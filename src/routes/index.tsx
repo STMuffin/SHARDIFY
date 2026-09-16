@@ -555,7 +555,7 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[oklch(0.86_0.21_150)]"
+        className="w-full accent-primary"
       />
     </div>
   );
