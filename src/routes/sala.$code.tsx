@@ -298,6 +298,7 @@ function RoomPage() {
         return () => window.clearTimeout(timeoutId);
       }
     }
+    return undefined;
   }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length, replayNonce]);
 
   useEffect(() => {

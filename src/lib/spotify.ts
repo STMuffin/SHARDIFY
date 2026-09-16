@@ -97,7 +97,7 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
   let url: string | null = "https://api.spotify.com/v1/me/playlists?limit=50";
 
   while (url && playlists.length < 500) {
-    const page = await fetchSpotifyJson<{
+    type PlaylistsPage = {
       next: string | null;
       items: {
         id?: string;
@@ -107,7 +107,8 @@ export async function fetchUserPlaylists(accessToken: string): Promise<UserPlayl
         items?: { total?: number };
         owner?: { display_name?: string };
       }[];
-    }>(url, accessToken);
+    };
+    const page: PlaylistsPage = await fetchSpotifyJson<PlaylistsPage>(url, accessToken);
 
     const countById = new Map<string, number>();
     const missingCounts = (page.items ?? []).filter(
