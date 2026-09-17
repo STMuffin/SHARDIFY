@@ -253,8 +253,8 @@
 }
 
 @keyframes flash-ok {
-  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
-  100% { box-shadow: 0 0 0 14px hsl(var(--primary) / 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 50%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
 }
 
 @utility shake {

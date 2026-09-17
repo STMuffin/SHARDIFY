@@ -1136,6 +1136,20 @@ function RoundView({
     chatEndRef.current?.scrollIntoView({ block: "nearest" });
   }, [myGuesses.length]);
 
+  // Visual feedback on the last guess: green flash on a hit, shake on a miss.
+  const [pulse, setPulse] = useState<"ok" | "bad" | null>(null);
+  const lastGuessIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const last = myGuesses[myGuesses.length - 1];
+    if (!last || lastGuessIdRef.current === last.id) return;
+    const first = lastGuessIdRef.current === null;
+    lastGuessIdRef.current = last.id;
+    if (first) return;
+    setPulse(last.correct_title || last.correct_artist ? "ok" : "bad");
+    const t = window.setTimeout(() => setPulse(null), 650);
+    return () => window.clearTimeout(t);
+  }, [myGuesses]);
+
 
   if (!track) {
     return (
@@ -1305,7 +1319,15 @@ function RoundView({
               </div>
             )
           ) : (
-            <div className="rounded-2xl border border-border bg-background/40 p-4">
+            <div
+              className={`rounded-2xl border bg-background/40 p-4 transition-colors ${
+                pulse === "ok"
+                  ? "border-primary flash-ok"
+                  : pulse === "bad"
+                    ? "border-destructive shake"
+                    : "border-border"
+              }`}
+            >
               <div className="flex gap-2 text-xs font-bold uppercase tracking-widest">
                 <span
                   className={`rounded-full px-3 py-1 ${
@@ -1384,6 +1406,7 @@ function RoundView({
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    sfx.send();
                     onAnswer({ text });
                     setText("");
                   }}
