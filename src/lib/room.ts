@@ -1,4 +1,45 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalize, similarity } from "./match";
+
+type ChoiceTrack = { title: string; artist: string };
+
+const label = (t: ChoiceTrack) => `${t.title} — ${t.artist}`;
+
+/**
+ * Builds 4 multiple-choice options: the right answer plus plausible wrong ones
+ * taken from the same playlists (same artist first, then similar-sounding titles),
+ * never a duplicate or a different version of the same song.
+ */
+export function buildChoiceOptions(correct: ChoiceTrack, pool: ChoiceTrack[]): string[] {
+  const correctTitle = normalize(correct.title);
+  const correctArtist = normalize(correct.artist);
+  const seen = new Set([label(correct).toLowerCase(), correctTitle]);
+
+  const candidates: { text: string; score: number }[] = [];
+  for (const other of pool) {
+    const title = normalize(other.title);
+    const artist = normalize(other.artist);
+    if (!title) continue;
+    // Skip the same song (or another version of it).
+    if (title === correctTitle || similarity(title, correctTitle) >= 0.8) continue;
+    const text = label(other);
+    const key = text.toLowerCase();
+    if (seen.has(key) || seen.has(title)) continue;
+    seen.add(key);
+    seen.add(title);
+
+    const sameArtist = artist === correctArtist ? 1 : similarity(artist, correctArtist) >= 0.85 ? 0.9 : 0;
+    const titleLike = similarity(title, correctTitle); // < 0.8 by now
+    const lengthLike = 1 - Math.min(1, Math.abs(title.length - correctTitle.length) / 24);
+    candidates.push({
+      text,
+      score: sameArtist * 2 + titleLike * 1.2 + lengthLike * 0.6 + Math.random() * 0.5,
+    });
+  }
+
+  const wrong = candidates.sort((a, b) => b.score - a.score).slice(0, 3).map((c) => c.text);
+  return shuffle([label(correct), ...wrong]);
+}
 
 export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology" | "blend";
 
