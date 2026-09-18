@@ -505,14 +505,7 @@ function RoomPage() {
                   ],
                 ).slice(0, 3),
               ])
-            : shuffle([
-                `${t.title} — ${t.artist}`,
-                ...shuffle(
-                  allTracks.filter((o) => o.title.toLowerCase() !== t.title.toLowerCase()),
-                )
-                  .slice(0, 3)
-                  .map((o) => `${o.title} — ${o.artist}`),
-              ]);
+            : buildChoiceOptions(t, allTracks);
         return {
           room_id: room.id,
           idx,
