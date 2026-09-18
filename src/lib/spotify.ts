@@ -13,6 +13,27 @@ export type SpotifySession = {
   expiresAt: number;
 };
 
+/** Turns Spotify's raw error codes into something a player can act on. */
+export function friendlySpotifyError(raw: string | null | undefined): string {
+  const text = (raw ?? "").toLowerCase();
+  if (!text) return "No se pudo conectar con Spotify.";
+  if (text.includes("access_denied") || text.includes("cancel")) {
+    return "Cancelaste la conexión con Spotify.";
+  }
+  if (
+    text.includes("not registered") ||
+    text.includes("user may not be registered") ||
+    text.includes("forbidden") ||
+    text.includes("403")
+  ) {
+    return "Tu cuenta de Spotify aún no tiene permiso en esta app. No hace falta: pega el enlace de una playlist pública y podrás jugar igual.";
+  }
+  if (text.includes("redirect_uri") || text.includes("invalid_client")) {
+    return "La conexión con Spotify no está bien configurada todavía. Mientras tanto, pega el enlace de una playlist pública.";
+  }
+  return raw ?? "No se pudo conectar con Spotify.";
+}
+
 export function redirectUri(): string {
   return `${window.location.origin}/spotify/callback`;
 }
