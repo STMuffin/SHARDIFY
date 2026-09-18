@@ -218,18 +218,21 @@ function RoomPage() {
     let cancelled = false;
     let retry = 0;
     const fetchTrack = async () => {
-      const { data } = await db
-        .from("round_tracks")
-        .select("*")
-        .eq("room_id", room.id)
-        .eq("idx", room.current_round)
-        .maybeSingle();
+      const { data, error } = await db.rpc("get_current_round_track", {
+        p_room_id: room.id,
+        p_round_idx: room.current_round,
+      });
       if (cancelled) return;
-      if (data) {
-        setTrack(data as RoundTrackRow);
+      if (error) {
+        console.error("fetchTrack failed", error);
+      }
+      const currentTrack = Array.isArray(data) ? data[0] : data;
+      if (currentTrack) {
+        setTrack(currentTrack as RoundTrackRow);
         return;
       }
-      // Row not visible yet for this client: retry until it is
+
+      // The room can become active just before the round row is readable.
       retry = window.setTimeout(() => void fetchTrack(), 600);
     };
     void fetchTrack();
