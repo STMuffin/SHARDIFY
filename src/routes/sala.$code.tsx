@@ -216,6 +216,7 @@ function RoomPage() {
       return;
     }
     let cancelled = false;
+    let retry = 0;
     const fetchTrack = async () => {
       const { data } = await db
         .from("round_tracks")
