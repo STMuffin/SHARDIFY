@@ -72,6 +72,7 @@ function RoomPage() {
   const [guesses, setGuesses] = useState<GuessRow[]>([]);
   const [track, setTrack] = useState<RoundTrackRow | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [clockOffset, setClockOffset] = useState(0);
   const [notFound, setNotFound] = useState(false);
   const [joinName, setJoinName] = useState("");
   const [joinTeam, setJoinTeam] = useState<"rojo" | "azul" | null>(null);
