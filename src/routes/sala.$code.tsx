@@ -107,6 +107,32 @@ function RoomPage() {
     return () => window.clearInterval(id);
   }, []);
 
+  // Sync with server clock so every player reveals the answer at the same time
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const url = import.meta.env['VITE_SUPABASE_URL'];
+        if (!url) return;
+        const started = Date.now();
+        const res = await fetch(`${url}/rest/v1/`, { method: "HEAD" });
+        const dateHeader = res.headers.get("date");
+        if (!dateHeader || cancelled) return;
+        const rtt = Date.now() - started;
+        const serverNow = new Date(dateHeader).getTime() + rtt / 2;
+        if (Number.isFinite(serverNow)) setClockOffset(serverNow - Date.now());
+      } catch {
+        /* keep local clock */
+      }
+    };
+    void sync();
+    const id = window.setInterval(() => void sync(), 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
   const loadRoom = useCallback(async () => {
     try {
       const { data, error } = await db.from("rooms").select("*").eq("code", code.toUpperCase()).maybeSingle();
