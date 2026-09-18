@@ -223,11 +223,19 @@ function RoomPage() {
         .eq("room_id", room.id)
         .eq("idx", room.current_round)
         .maybeSingle();
-      if (!cancelled && data) setTrack(data as RoundTrackRow);
+      if (cancelled) return;
+      if (data) {
+        setTrack(data as RoundTrackRow);
+        return;
+      }
+      // Row not visible yet for this client: retry until it is
+      retry = window.setTimeout(() => void fetchTrack(), 600);
     };
+    let retry = 0;
     void fetchTrack();
     return () => {
       cancelled = true;
+      window.clearTimeout(retry);
     };
   }, [room?.id, room?.status, room?.current_round]);
 
