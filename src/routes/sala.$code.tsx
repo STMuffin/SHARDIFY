@@ -246,7 +246,7 @@ function RoomPage() {
   const isHost = Boolean(me?.is_host);
   const seconds = room?.seconds ?? 30;
   const elapsed = room?.round_started_at
-    ? (now - new Date(room.round_started_at).getTime()) / 1000
+    ? (now + clockOffset - new Date(room.round_started_at).getTime()) / 1000
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
   const revealing = room?.status === "playing" && remaining <= 0;
