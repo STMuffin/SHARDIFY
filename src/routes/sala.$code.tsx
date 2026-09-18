@@ -72,6 +72,7 @@ function RoomPage() {
   const [guesses, setGuesses] = useState<GuessRow[]>([]);
   const [track, setTrack] = useState<RoundTrackRow | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [clockOffset, setClockOffset] = useState(0);
   const [notFound, setNotFound] = useState(false);
   const [joinName, setJoinName] = useState("");
   const [joinTeam, setJoinTeam] = useState<"rojo" | "azul" | null>(null);
@@ -104,6 +105,32 @@ function RoomPage() {
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 200);
     return () => window.clearInterval(id);
+  }, []);
+
+  // Sync with server clock so every player reveals the answer at the same time
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const url = import.meta.env['VITE_SUPABASE_URL'];
+        if (!url) return;
+        const started = Date.now();
+        const res = await fetch(`${url}/rest/v1/`, { method: "HEAD" });
+        const dateHeader = res.headers.get("date");
+        if (!dateHeader || cancelled) return;
+        const rtt = Date.now() - started;
+        const serverNow = new Date(dateHeader).getTime() + rtt / 2;
+        if (Number.isFinite(serverNow)) setClockOffset(serverNow - Date.now());
+      } catch {
+        /* keep local clock */
+      }
+    };
+    void sync();
+    const id = window.setInterval(() => void sync(), 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, []);
 
   const loadRoom = useCallback(async () => {
@@ -174,7 +201,7 @@ function RoomPage() {
     void refresh();
     const id = window.setInterval(() => {
       void refresh();
-    }, 2500);
+    }, 900);
 
     return () => {
       cancelled = true;
@@ -189,6 +216,7 @@ function RoomPage() {
       return;
     }
     let cancelled = false;
+    let retry = 0;
     const fetchTrack = async () => {
       const { data } = await db
         .from("round_tracks")
@@ -196,11 +224,18 @@ function RoomPage() {
         .eq("room_id", room.id)
         .eq("idx", room.current_round)
         .maybeSingle();
-      if (!cancelled && data) setTrack(data as RoundTrackRow);
+      if (cancelled) return;
+      if (data) {
+        setTrack(data as RoundTrackRow);
+        return;
+      }
+      // Row not visible yet for this client: retry until it is
+      retry = window.setTimeout(() => void fetchTrack(), 600);
     };
     void fetchTrack();
     return () => {
       cancelled = true;
+      window.clearTimeout(retry);
     };
   }, [room?.id, room?.status, room?.current_round]);
 
@@ -211,7 +246,7 @@ function RoomPage() {
   const isHost = Boolean(me?.is_host);
   const seconds = room?.seconds ?? 30;
   const elapsed = room?.round_started_at
-    ? (now - new Date(room.round_started_at).getTime()) / 1000
+    ? (now + clockOffset - new Date(room.round_started_at).getTime()) / 1000
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
   const revealing = room?.status === "playing" && remaining <= 0;
