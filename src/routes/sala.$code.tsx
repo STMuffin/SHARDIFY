@@ -232,7 +232,6 @@ function RoomPage() {
       // Row not visible yet for this client: retry until it is
       retry = window.setTimeout(() => void fetchTrack(), 600);
     };
-    let retry = 0;
     void fetchTrack();
     return () => {
       cancelled = true;
