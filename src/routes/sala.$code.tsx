@@ -29,6 +29,7 @@ import {
   type PlayerRow,
   type RoomRow,
   type RoundTrackRow,
+  buildChoiceOptions,
 } from "@/lib/room";
 
 export const Route = createFileRoute("/sala/$code")({
