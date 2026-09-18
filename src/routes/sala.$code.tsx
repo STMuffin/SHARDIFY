@@ -201,7 +201,7 @@ function RoomPage() {
     void refresh();
     const id = window.setInterval(() => {
       void refresh();
-    }, 2500);
+    }, 900);
 
     return () => {
       cancelled = true;
