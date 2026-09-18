@@ -229,7 +229,6 @@ export function shuffle<T>(items: T[]): T[] {
 
 export const db = supabase as unknown as {
   from: (table: string) => any;
-  rpc: (functionName: string, params?: Record<string, unknown>) => any;
   channel: typeof supabase.channel;
   removeChannel: typeof supabase.removeChannel;
 };

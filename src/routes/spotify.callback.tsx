@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { exchangeCode, friendlySpotifyError, saveSession } from "@/lib/spotify";
+import { exchangeCode, saveSession } from "@/lib/spotify";
 
 export const Route = createFileRoute("/spotify/callback")({
   ssr: false,
