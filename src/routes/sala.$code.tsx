@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
 
+import { AnimatedScore } from "@/components/animated-score";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
 import { getSpotifyClientId } from "@/lib/spotify.functions";
@@ -862,7 +863,7 @@ function RoomPage() {
                         <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
                         Equipo {team.team}
                       </span>
-                      <span className="font-display font-bold">{team.total} pts</span>
+                      <AnimatedScore value={team.total} suffix=" pts" className="font-display font-bold" />
                     </li>
                   ))}
                 </ol>
@@ -877,7 +878,7 @@ function RoomPage() {
                         <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
                         {p.name}
                       </span>
-                      <span className="font-display font-bold">{p.score} pts</span>
+                      <AnimatedScore value={p.score} suffix=" pts" className="font-display font-bold" />
                     </li>
                   ))}
                 </ol>
@@ -906,7 +907,7 @@ function RoomPage() {
                     <span className="flex items-center gap-2">
                       <span className="font-display font-bold text-foreground">Equipo {team.team}</span>
                     </span>
-                    <span className="font-display font-bold text-foreground">{team.total}</span>
+                    <AnimatedScore value={team.total} className="font-display font-bold text-foreground" />
                   </li>
                 ))
               : ranked.map((p) => {
@@ -927,7 +928,7 @@ function RoomPage() {
                           <span className="size-1.5 rounded-full bg-primary" />
                         )}
                       </span>
-                      <span className="font-display font-bold text-foreground">{p.score}</span>
+                      <AnimatedScore value={p.score} className="font-display font-bold text-foreground" />
                     </li>
                   );
                 })}
