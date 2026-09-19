@@ -1332,7 +1332,6 @@ function RoundView({
                 </p>
               )}
             </div>
-            )
           ) : room.mode === "tries" ? (
             myGuesses.length >= 4 || titleFound || artistFound ? (
               <p className="text-center text-sm text-muted-foreground">
