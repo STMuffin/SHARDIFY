@@ -1193,6 +1193,46 @@ function RoundView({
   const triesAttempt = room.mode === "tries" ? Math.min(myGuesses.length + 1, 4) : 0;
   const triesPreview = room.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myGuesses.length, 3)) : null;
 
+  // Multiple-choice feedback: color the picked option and reveal the right one.
+  const correctOption =
+    room.mode === "owner"
+      ? track.source_player_name ?? ""
+      : room.mode === "chronology"
+      ? track.options[0] ?? ""
+      : `${track.title} — ${track.artist}`;
+  const myOption = myGuesses[0]?.answer ?? null;
+  const myOptionCorrect = Boolean(myGuesses[0]?.correct_title);
+
+  function optionClass(option: string): string {
+    const base = "rounded-xl border px-4 py-4 text-left text-sm font-medium transition";
+    if (myOption === null) {
+      return `${base} border-border bg-background/40 hover:border-primary hover:bg-primary/10`;
+    }
+    if (option === myOption && myOptionCorrect) {
+      return `${base} border-success bg-success/20 text-success flash-ok`;
+    }
+    if (option === myOption) return `${base} border-destructive bg-destructive/20 text-destructive shake`;
+    if (option === correctOption) return `${base} border-success bg-success/15 text-success`;
+    return `${base} border-border bg-background/20 opacity-50`;
+  }
+
+  function renderOptions() {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {track!.options.map((option) => (
+          <button
+            key={option}
+            disabled={myOption !== null}
+            onClick={() => onAnswer({ option })}
+            className={optionClass(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between text-xs uppercase tracking-widest text-muted-foreground">
@@ -1271,49 +1311,27 @@ function RoundView({
               <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
                 ¿De quién es esta playlist?
               </p>
-              {myGuesses.length > 0 ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  Respuesta enviada. Espera al resto…
+              {renderOptions()}
+              {myOption !== null && (
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  {myOptionCorrect ? "¡Correcto!" : `La respuesta era: ${correctOption}`} Espera al resto…
                 </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {track.options.map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => onAnswer({ option })}
-                      className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
               )}
             </div>
           ) : room.mode === "choice" || room.mode === "chronology" || room.mode === "blend" ? (
-            myGuesses.length > 0 ? (
-              <p className="text-center text-sm text-muted-foreground">
-                Respuesta enviada. Espera al resto…
-              </p>
-            ) : (
-              <div>
-                {room.mode === "chronology" && (
-                  <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
-                    ¿Esta canción salió antes o después de la referencia?
-                  </p>
-                )}
-                <div className="grid gap-3 sm:grid-cols-2">
-                {track.options.map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => onAnswer({ option })}
-                    className="rounded-xl border border-border bg-background/40 px-4 py-4 text-left text-sm font-medium transition hover:border-primary hover:bg-primary/10"
-                  >
-                    {option}
-                  </button>
-                ))}
-                </div>
-              </div>
-            )
+            <div>
+              {room.mode === "chronology" && (
+                <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
+                  ¿Esta canción salió antes o después de la referencia?
+                </p>
+              )}
+              {renderOptions()}
+              {myOption !== null && (
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  {myOptionCorrect ? "¡Correcto!" : `La respuesta era: ${correctOption}`} Espera al resto…
+                </p>
+              )}
+            </div>
           ) : room.mode === "tries" ? (
             myGuesses.length >= 4 || titleFound || artistFound ? (
               <p className="text-center text-sm text-muted-foreground">
