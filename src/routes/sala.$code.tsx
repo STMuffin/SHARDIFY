@@ -1266,27 +1266,35 @@ function RoundView({
 
       <div className="mt-8 flex flex-col items-center">
         {revealing ? (
-          <div className="text-center">
+          <div key={`reveal-${room.current_round}`} className="text-center">
             {track.cover && (
-              <img
-                src={track.cover}
-                alt={`Portada de ${track.title}`}
-                className="mx-auto size-40 rounded-2xl object-cover"
-              />
+              <div className="relative mx-auto size-40">
+                <span className="reveal-burst absolute inset-0 rounded-2xl" />
+                <img
+                  src={track.cover}
+                  alt={`Portada de ${track.title}`}
+                  className="reveal-cover relative size-40 rounded-2xl object-cover"
+                />
+              </div>
             )}
-            <p className="mt-4 font-display text-2xl font-bold">{track.title}</p>
-            <p className="text-sm text-muted-foreground">{track.artist}</p>
+            <p className="reveal-line mt-4 font-display text-2xl font-bold" style={{ animationDelay: "160ms" }}>
+              {track.title}
+            </p>
+            <p className="reveal-line text-sm text-muted-foreground" style={{ animationDelay: "280ms" }}>
+              {track.artist}
+            </p>
             {(room.mode === "owner" || room.mode === "blend") && track.source_player_name && (
-              <p className="mt-3 text-sm font-bold text-primary">
+              <p className="reveal-line mt-3 text-sm font-bold text-primary" style={{ animationDelay: "380ms" }}>
                 {room.mode === "blend"
                   ? `Aportada por ${track.source_player_name}`
                   : `La playlist era de ${track.source_player_name}`}
               </p>
             )}
             <p
-              className={`mt-4 text-sm font-bold ${
-                roundPoints > 0 ? "text-primary" : "text-muted-foreground"
+              className={`reveal-line mt-4 text-sm font-bold ${
+                roundPoints > 0 ? "text-primary score-bump" : "text-muted-foreground"
               }`}
+              style={{ animationDelay: "460ms" }}
             >
               {roundPoints > 0 ? `+${roundPoints} puntos` : "Sin puntos esta ronda"}
             </p>
