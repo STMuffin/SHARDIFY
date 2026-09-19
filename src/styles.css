@@ -264,3 +264,24 @@
 @utility flash-ok {
   animation: flash-ok 0.6s ease-out;
 }
+
+@keyframes score-gain-float {
+  0% { opacity: 0; transform: translateY(6px) scale(0.9); }
+  25% { opacity: 1; transform: translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
+
+@keyframes score-bump-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+@utility score-gain {
+  animation: score-gain-float 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility score-bump {
+  display: inline-block;
+  animation: score-bump-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
