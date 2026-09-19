@@ -1193,6 +1193,46 @@ function RoundView({
   const triesAttempt = room.mode === "tries" ? Math.min(myGuesses.length + 1, 4) : 0;
   const triesPreview = room.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myGuesses.length, 3)) : null;
 
+  // Multiple-choice feedback: color the picked option and reveal the right one.
+  const correctOption =
+    room.mode === "owner"
+      ? track.source_player_name ?? ""
+      : room.mode === "chronology"
+      ? track.options[0] ?? ""
+      : `${track.title} — ${track.artist}`;
+  const myOption = myGuesses[0]?.answer ?? null;
+  const myOptionCorrect = Boolean(myGuesses[0]?.correct_title);
+
+  function optionClass(option: string): string {
+    const base = "rounded-xl border px-4 py-4 text-left text-sm font-medium transition";
+    if (myOption === null) {
+      return `${base} border-border bg-background/40 hover:border-primary hover:bg-primary/10`;
+    }
+    if (option === myOption && myOptionCorrect) {
+      return `${base} border-success bg-success/20 text-success flash-ok`;
+    }
+    if (option === myOption) return `${base} border-destructive bg-destructive/20 text-destructive shake`;
+    if (option === correctOption) return `${base} border-success bg-success/15 text-success`;
+    return `${base} border-border bg-background/20 opacity-50`;
+  }
+
+  function renderOptions() {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {track!.options.map((option) => (
+          <button
+            key={option}
+            disabled={myOption !== null}
+            onClick={() => onAnswer({ option })}
+            className={optionClass(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between text-xs uppercase tracking-widest text-muted-foreground">
