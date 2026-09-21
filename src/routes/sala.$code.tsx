@@ -414,6 +414,18 @@ function RoomPage() {
 
   async function unlockAudio() {
     try {
+      const audio = audioRef.current;
+      if (audio && track && room?.status === "playing" && Number.isFinite(audio.duration)) {
+        const shouldLimitPreview = room.mode === "tries" && typeof triesPreviewSeconds === "number";
+        const previewSeconds = shouldLimitPreview ? triesPreviewSeconds : seconds;
+        const attemptIndex = shouldLimitPreview ? Math.min(myRoundGuesses.length, 3) : 0;
+        const start = getPreviewStartSeconds(track.id, audio.duration, previewSeconds, attemptIndex);
+        const elapsed = room.round_started_at
+          ? Math.max(0, (Date.now() + clockOffset - new Date(room.round_started_at).getTime()) / 1000)
+          : 0;
+        const position = shouldLimitPreview ? start : start + elapsed;
+        if (position < audio.duration) audio.currentTime = position;
+      }
       await audioRef.current?.play();
       setAudioBlocked(false);
     } catch {
