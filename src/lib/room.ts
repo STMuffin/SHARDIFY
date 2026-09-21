@@ -130,6 +130,7 @@ export function computeRoundPoints({
   totalSeconds,
   isOwnerGuess,
   attemptIndex,
+  responseTimeMs,
 }: {
   titleCorrect: boolean;
   artistCorrect: boolean;
@@ -137,10 +138,21 @@ export function computeRoundPoints({
   totalSeconds: number;
   isOwnerGuess?: boolean;
   attemptIndex?: number;
+  responseTimeMs?: number;
 }): number {
-  if (isOwnerGuess) return titleCorrect ? 150 : 0;
+  if (isOwnerGuess && typeof responseTimeMs !== "number") return titleCorrect ? 150 : 0;
 
-  const bestBase = titleCorrect && artistCorrect ? 150 : titleCorrect ? 90 : artistCorrect ? 60 : 0;
+  const bestBase = isOwnerGuess
+    ? titleCorrect
+      ? 150
+      : 0
+    : titleCorrect && artistCorrect
+      ? 150
+      : titleCorrect
+        ? 90
+        : artistCorrect
+          ? 60
+          : 0;
   if (!bestBase) return 0;
 
   if (typeof attemptIndex === "number") {
@@ -150,9 +162,35 @@ export function computeRoundPoints({
     return Math.min(150, Math.max(0, score));
   }
 
+  if (typeof responseTimeMs === "number") {
+    const totalMs = Math.max(0, totalSeconds * 1000);
+    const elapsedMs = Math.max(0, Math.min(responseTimeMs, totalMs));
+    const timeRatio = totalMs > 0 ? 1 - elapsedMs / totalMs : 0;
+    const score = Math.round(15 + (bestBase - 15) * timeRatio);
+    return Math.min(150, Math.max(15, score));
+  }
+
   const timeRatio = totalSeconds > 0 ? Math.max(0, Math.min(1, remaining / totalSeconds)) : 0.5;
   const score = Math.round(bestBase * (0.3 + 0.7 * timeRatio));
   return Math.min(150, Math.max(0, score));
+}
+
+export function getPlayerWinStreak(
+  guesses: Array<{ player_id: string; round_idx: number; points: number }>,
+  playerId: string,
+  startingRound: number,
+): number {
+  const byRound = new Map(
+    guesses
+      .filter((guess) => guess.player_id === playerId)
+      .map((guess) => [guess.round_idx, guess.points]),
+  );
+  let streak = 0;
+  for (let round = startingRound; round >= 0; round -= 1) {
+    if ((byRound.get(round) ?? 0) <= 0) break;
+    streak += 1;
+  }
+  return streak;
 }
 
 export function getPreviewSecondsForAttempt(attemptIndex: number): number {

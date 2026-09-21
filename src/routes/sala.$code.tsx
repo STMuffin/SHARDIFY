@@ -21,6 +21,7 @@ import {
   computeRoundPoints,
   db,
   getClientKey,
+  getPlayerWinStreak,
   getPreviewSecondsForAttempt,
   getPreviewStartSeconds,
   getSavedName,
@@ -687,14 +688,20 @@ function RoomPage() {
     }
 
     submittingAnswerRef.current = true;
-    const points = computeRoundPoints({
+    const usesMillisecondScoring = room.mode !== "tries" && room.mode !== "type";
+    const basePoints = computeRoundPoints({
       titleCorrect: titleOk,
       artistCorrect: artistOk,
       remaining,
       totalSeconds: seconds,
       isOwnerGuess: room.mode === "owner",
+      ...(usesMillisecondScoring ? { responseTimeMs: Math.max(0, elapsed * 1000) } : {}),
       ...(room.mode === "tries" ? { attemptIndex: myRoundGuesses.length } : {}),
     });
+    const previousWinStreak = getPlayerWinStreak(guesses, me.id, room.current_round - 1);
+    const points = basePoints > 0 && previousWinStreak > 0
+      ? Math.round(basePoints * 1.2)
+      : basePoints;
 
     if (titleOk && artistOk) sfx.correct();
     else if (titleOk || artistOk) sfx.partial();
@@ -814,6 +821,12 @@ function RoomPage() {
   }
 
   const ranked = [...players].sort((a, b) => b.score - a.score);
+  const playerStreaks = new Map(
+    ranked.map((player) => [
+      player.id,
+      getPlayerWinStreak(guesses, player.id, room.current_round),
+    ]),
+  );
 
   return (
     <main className="mx-auto w-full max-w-5xl px-5 py-10">
@@ -968,6 +981,9 @@ function RoomPage() {
                         {p.name}
                         {room.status === "playing" && answered && (
                           <span className="size-1.5 rounded-full bg-primary" />
+                        )}
+                        {playerStreaks.get(p.id)! >= 2 && (
+                          <span className="text-[10px] font-bold text-primary/80">x1.2</span>
                         )}
                       </span>
                       <AnimatedScore value={p.score} className="font-display font-bold text-foreground" />
