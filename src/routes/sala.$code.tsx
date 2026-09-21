@@ -364,7 +364,6 @@ function RoomPage() {
       audio.volume = 0.9;
       let timeoutId: number | undefined;
       let hasStarted = false;
-      let handleEnded: (() => void) | undefined;
       let timeoutStarted = false;
       const handlePlaying = () => {
         if (!shouldLimitPreview || timeoutStarted) return;
@@ -381,28 +380,17 @@ function RoomPage() {
         const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
         const maxStart = shouldLimitPreview
           ? triesPreviewSeconds
-          : 1;
+          : seconds;
         const attemptIndex = shouldLimitPreview ? Math.min(myRoundGuesses.length, 3) : 0;
         const start = getPreviewStartSeconds(track.id, duration, maxStart, attemptIndex);
         const roundElapsed = room?.round_started_at
           ? Math.max(0, (Date.now() + clockOffset - new Date(room.round_started_at).getTime()) / 1000)
           : 0;
-        const playableDuration = Math.max(0, duration - start);
         const position = shouldLimitPreview
           ? start
-          : start + (playableDuration > 0 ? roundElapsed % playableDuration : 0);
+          : start + roundElapsed;
         if (position >= duration) return;
         audio.currentTime = position;
-        handleEnded = () => {
-          const currentElapsed = room?.round_started_at
-            ? (Date.now() + clockOffset - new Date(room.round_started_at).getTime()) / 1000
-            : 0;
-          if (!shouldLimitPreview && currentElapsed < seconds) {
-            audio.currentTime = start;
-            void audio.play();
-          }
-        };
-        if (!shouldLimitPreview) audio.addEventListener("ended", handleEnded);
         audio
           .play()
           .then(() => setAudioBlocked(false))
@@ -414,7 +402,6 @@ function RoomPage() {
       return () => {
         audio.removeEventListener("loadedmetadata", startPlayback);
         audio.removeEventListener("playing", handlePlaying);
-        if (handleEnded) audio.removeEventListener("ended", handleEnded);
         if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       };
     }

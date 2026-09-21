@@ -409,7 +409,7 @@ function Home() {
               label="Tiempo por canción"
               value={seconds}
               min={10}
-              max={60}
+              max={30}
               step={5}
               onChange={setSeconds}
               suffix="segundos"
