@@ -22,6 +22,7 @@ import {
   db,
   getClientKey,
   getPreviewSecondsForAttempt,
+  getPreviewStartSeconds,
   getSavedName,
   isOwnerModeSchemaMissingError,
   saveName,
@@ -361,15 +362,47 @@ function RoomPage() {
       audio.src = track.preview_url;
       audio.loop = false;
       audio.volume = 0.9;
+      let timeoutId: number | undefined;
       let hasStarted = false;
+      let handleEnded: (() => void) | undefined;
+      let timeoutStarted = false;
+      const handlePlaying = () => {
+        if (!shouldLimitPreview || timeoutStarted) return;
+        timeoutStarted = true;
+        timeoutId = window.setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+        }, triesPreviewSeconds * 1000);
+      };
+      audio.addEventListener("playing", handlePlaying);
       const startPlayback = () => {
         if (hasStarted) return;
         hasStarted = true;
         const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
         const maxStart = shouldLimitPreview
-          ? Math.max(0, duration - triesPreviewSeconds)
-          : Math.max(0, duration - 1);
-        audio.currentTime = maxStart > 0 ? Math.random() * maxStart : 0;
+          ? triesPreviewSeconds
+          : 1;
+        const attemptIndex = shouldLimitPreview ? Math.min(myRoundGuesses.length, 3) : 0;
+        const start = getPreviewStartSeconds(track.id, duration, maxStart, attemptIndex);
+        const roundElapsed = room?.round_started_at
+          ? Math.max(0, (Date.now() + clockOffset - new Date(room.round_started_at).getTime()) / 1000)
+          : 0;
+        const playableDuration = Math.max(0, duration - start);
+        const position = shouldLimitPreview
+          ? start
+          : start + (playableDuration > 0 ? roundElapsed % playableDuration : 0);
+        if (position >= duration) return;
+        audio.currentTime = position;
+        handleEnded = () => {
+          const currentElapsed = room?.round_started_at
+            ? (Date.now() + clockOffset - new Date(room.round_started_at).getTime()) / 1000
+            : 0;
+          if (!shouldLimitPreview && currentElapsed < seconds) {
+            audio.currentTime = start;
+            void audio.play();
+          }
+        };
+        if (!shouldLimitPreview) audio.addEventListener("ended", handleEnded);
         audio
           .play()
           .then(() => setAudioBlocked(false))
@@ -378,15 +411,10 @@ function RoomPage() {
       audio.addEventListener("loadedmetadata", startPlayback, { once: true });
       if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
 
-      let timeoutId: number | undefined;
-      if (shouldLimitPreview) {
-        timeoutId = window.setTimeout(() => {
-          audio.pause();
-          audio.currentTime = 0;
-        }, triesPreviewSeconds * 1000);
-      }
       return () => {
         audio.removeEventListener("loadedmetadata", startPlayback);
+        audio.removeEventListener("playing", handlePlaying);
+        if (handleEnded) audio.removeEventListener("ended", handleEnded);
         if (timeoutId !== undefined) window.clearTimeout(timeoutId);
       };
     }

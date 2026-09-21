@@ -160,6 +160,23 @@ export function getPreviewSecondsForAttempt(attemptIndex: number): number {
   return durations[Math.min(attemptIndex, durations.length - 1)] ?? 20;
 }
 
+export function getPreviewStartSeconds(
+  trackId: string,
+  duration: number,
+  previewSeconds: number,
+  attemptIndex = 0,
+): number {
+  const maxStart = Math.max(0, duration - previewSeconds);
+  if (!maxStart || !Number.isFinite(maxStart)) return 0;
+
+  let hash = 2166136261;
+  for (const character of `${trackId}:${attemptIndex}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) / 4294967296) * maxStart;
+}
+
 export function getAttemptScoreFactor(attemptIndex: number): number {
   const factors = [1, 0.7, 0.45, 0.25];
   return factors[Math.min(attemptIndex, factors.length - 1)] ?? 0.25;
