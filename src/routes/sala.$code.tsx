@@ -360,20 +360,35 @@ function RoomPage() {
       audio.dataset["key"] = datasetKey;
       audio.src = track.preview_url;
       audio.loop = false;
-      audio.currentTime = 0;
       audio.volume = 0.9;
-      audio
-        .play()
-        .then(() => setAudioBlocked(false))
-        .catch(() => setAudioBlocked(true));
+      let hasStarted = false;
+      const startPlayback = () => {
+        if (hasStarted) return;
+        hasStarted = true;
+        const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+        const maxStart = shouldLimitPreview
+          ? Math.max(0, duration - triesPreviewSeconds)
+          : Math.max(0, duration - 1);
+        audio.currentTime = maxStart > 0 ? Math.random() * maxStart : 0;
+        audio
+          .play()
+          .then(() => setAudioBlocked(false))
+          .catch(() => setAudioBlocked(true));
+      };
+      audio.addEventListener("loadedmetadata", startPlayback, { once: true });
+      if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) startPlayback();
 
+      let timeoutId: number | undefined;
       if (shouldLimitPreview) {
-        const timeoutId = window.setTimeout(() => {
+        timeoutId = window.setTimeout(() => {
           audio.pause();
           audio.currentTime = 0;
         }, triesPreviewSeconds * 1000);
-        return () => window.clearTimeout(timeoutId);
       }
+      return () => {
+        audio.removeEventListener("loadedmetadata", startPlayback);
+        if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      };
     }
     return undefined;
   }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length, replayNonce]);
