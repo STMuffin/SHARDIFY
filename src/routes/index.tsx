@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Loader2, Music4, Radio, Type } from "lucide-react";
+import { ArrowUpRight, Check, Loader2, Music4, Radio, Type } from "lucide-react";
 
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { loadPlaylist } from "@/lib/game.functions";
@@ -467,6 +467,29 @@ function Home() {
           <li>· La música suena sola hasta que se acaba el tiempo.</li>
         </ul>
       </div>
+
+      <aside
+        className="panel rise-in mx-auto mt-5 flex max-w-2xl items-center gap-4 p-4 sm:gap-5 sm:p-5"
+        style={{ animationDelay: "300ms" }}
+      >
+        <img
+          src="https://shardix.pages.dev/images/avatar.png"
+          alt="Avatar del creador de SHARDIFY"
+          className="size-16 shrink-0 rounded-2xl border border-primary/30 bg-background/50 object-cover shadow-[0_8px_24px_-12px_var(--primary)] sm:size-20"
+        />
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+          Página hecha mayormente con IA. Si quieres ver una página más normal con toques humanos,
+          <a
+            href="https://shardix.pages.dev/"
+            target="_blank"
+            rel="noreferrer"
+            className="ml-1 inline-flex items-center gap-1 font-semibold text-primary underline decoration-primary/40 underline-offset-4 hover:text-foreground"
+          >
+            entra a la página del creador
+            <ArrowUpRight className="size-3.5" aria-hidden="true" />
+          </a>
+        </p>
+      </aside>
     </main>
   );
 }
