@@ -1269,8 +1269,9 @@ function RoundView({
   async function sendText(event: React.FormEvent) {
     event.preventDefault();
     if (answerPending || text.trim().length < 2) return;
-    if (await onAnswer({ text })) {
-      setText("");
+    const sent = text;
+    if (await onAnswer({ text: sent })) {
+      setText((current) => current === sent ? "" : current);
       inputRef.current?.focus();
     }
   }
