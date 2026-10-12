@@ -36,7 +36,7 @@ test("fetchPlaylist follows every Spotify playlist page", async () => {
   };
 
   try {
-    const result = await fetchPlaylist("https://open.spotify.com/playlist/test");
+    const result = await fetchPlaylist("https://open.spotify.com/playlist/test", "mock-user-token");
     assert.deepEqual(result.tracks.map((track) => track.title), ["Una", "Dos", "Tres"]);
     assert.equal(requestedUrls.length, 3);
   } finally {
