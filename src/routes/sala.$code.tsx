@@ -1,9 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Crown, Loader2, Play, Users, Volume2 } from "lucide-react";
+import { Check, Crown, Loader2, Play, Send, Users, Volume2, WifiOff } from "lucide-react";
 
 import { AnimatedScore } from "@/components/animated-score";
+import { Button } from "@/components/ui/button";
+import { RoomShare } from "@/components/room-share";
+import { getMusicVolume, MUSIC_VOLUME_EVENT } from "@/lib/audio-settings";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
 import { getSpotifyClientId } from "@/lib/spotify.functions";
@@ -47,6 +50,8 @@ export const Route = createFileRoute("/sala/$code")({
       { property: "og:title", content: "Sala de juego — SHARDIFY" },
       { property: "og:description", content: "Entra con el código y juega al blind test con tus amigos." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: RoomPage,
@@ -83,6 +88,8 @@ function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [replayNonce, setReplayNonce] = useState(0);
+  const [answerPending, setAnswerPending] = useState(false);
+  const [online, setOnline] = useState(true);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const advancingRef = useRef(false);
@@ -91,6 +98,21 @@ function RoomPage() {
   useEffect(() => {
     setClientKey(getClientKey());
     setJoinName(getSavedName());
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    const update = () => { if (audioRef.current) audioRef.current.volume = getMusicVolume(); };
+    update();
+    window.addEventListener(MUSIC_VOLUME_EVENT, update);
+    return () => window.removeEventListener(MUSIC_VOLUME_EVENT, update);
   }, []);
 
   const teamTotals = useMemo(() => {
@@ -147,6 +169,7 @@ function RoomPage() {
         return null;
       }
       setRoom(data as RoomRow);
+      setNotFound(false);
       return data as RoomRow;
     } catch (err) {
       console.error("loadRoom failed", err);
@@ -194,11 +217,15 @@ function RoomPage() {
     if (!roomId) return;
 
     let cancelled = false;
+    let refreshing = false;
     const refresh = async () => {
-      if (cancelled) return;
-      await loadRoom();
-      await loadPlayers(roomId);
-      await loadGuesses(roomId);
+      if (cancelled || refreshing || !navigator.onLine) return;
+      refreshing = true;
+      try {
+        await Promise.all([loadRoom(), loadPlayers(roomId), loadGuesses(roomId)]);
+      } finally {
+        refreshing = false;
+      }
     };
 
     void refresh();
@@ -220,6 +247,7 @@ function RoomPage() {
     }
     let cancelled = false;
     let retry = 0;
+    setTrack(null);
     const fetchTrack = async () => {
       const { data } = await db
         .from("round_tracks")
@@ -356,13 +384,13 @@ function RoomPage() {
     const shouldLimitPreview = room?.mode === "tries" && typeof triesPreviewSeconds === "number";
     const datasetKey = shouldLimitPreview
       ? `tries-${track.idx}-${triesPreviewSeconds}-${replayNonce}`
-      : `track-${track.idx}`;
+      : `track-${track.id}`;
 
     if (audio.dataset["key"] !== datasetKey) {
       audio.dataset["key"] = datasetKey;
       audio.src = track.preview_url;
       audio.loop = false;
-      audio.volume = 0.9;
+      audio.volume = getMusicVolume();
       let timeoutId: number | undefined;
       let hasStarted = false;
       let timeoutStarted = false;
@@ -407,7 +435,7 @@ function RoomPage() {
       };
     }
     return undefined;
-  }, [track, room?.status, room?.mode, triesPreviewSeconds, myRoundGuesses.length, replayNonce]);
+  }, [track, room?.status, room?.mode, triesPreviewSeconds, triesAttempt, replayNonce]);
 
   useEffect(() => {
     if (revealing || room?.status !== "playing") audioRef.current?.pause();
@@ -664,8 +692,8 @@ function RoomPage() {
 
 
 
-  async function submitAnswer(payload: { text: string } | { option: string }) {
-    if (!room || !me || !track || revealing || roundDone || submittingAnswerRef.current) return;
+  async function submitAnswer(payload: { text: string } | { option: string }): Promise<boolean> {
+    if (!room || !me || !track || track.idx !== room.current_round || revealing || roundDone || submittingAnswerRef.current || !online) return false;
     let titleOk = false;
     let artistOk = false;
     let answer = "";
@@ -682,12 +710,14 @@ function RoomPage() {
       artistOk = titleOk;
     } else {
       answer = payload.text.trim();
-      if (answer.length < 2) return;
+      if (answer.length < 2) return false;
       titleOk = !titleFound && isClose(answer, track.title);
       artistOk = !artistFound && isClose(answer, track.artist);
     }
 
     submittingAnswerRef.current = true;
+    setAnswerPending(true);
+    setError(null);
     const usesMillisecondScoring = room.mode !== "tries" && room.mode !== "type";
     const basePoints = computeRoundPoints({
       titleCorrect: titleOk,
@@ -703,17 +733,8 @@ function RoomPage() {
       ? Math.round(basePoints * 1.2)
       : basePoints;
 
-    if (titleOk && artistOk) sfx.correct();
-    else if (titleOk || artistOk) sfx.partial();
-    else if (
-      "text" in payload &&
-      nearMissHint(answer, track.title, track.artist, titleFound, artistFound)
-    )
-      sfx.near();
-    else sfx.wrong();
-
     try {
-      await db.from("guesses").insert({
+      const { error: guessError } = await db.from("guesses").insert({
         room_id: room.id,
         round_idx: room.current_round,
         player_id: me.id,
@@ -722,13 +743,24 @@ function RoomPage() {
         correct_artist: artistOk,
         points,
       });
+      if (guessError) throw guessError;
+      if (titleOk && artistOk) sfx.correct();
+      else if (titleOk || artistOk) sfx.partial();
+      else if ("text" in payload && nearMissHint(answer, track.title, track.artist, titleFound, artistFound)) sfx.near();
+      else sfx.wrong();
       if (points > 0) {
-        await db.from("players").update({ score: me.score + points }).eq("id", me.id);
+        const { error: scoreError } = await db.from("players").update({ score: me.score + points }).eq("id", me.id);
+        if (scoreError) setError("Respuesta guardada, pero no se pudieron actualizar los puntos.");
       }
       await loadGuesses(room.id);
       await loadPlayers(room.id);
+      return true;
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo enviar tu respuesta. Inténtalo de nuevo."));
+      return false;
     } finally {
       submittingAnswerRef.current = false;
+      setAnswerPending(false);
     }
   }
 
@@ -767,6 +799,7 @@ function RoomPage() {
     return (
       <Centered>
         <Loader2 className="size-8 animate-spin text-primary" />
+        {error && <><p role="alert" className="mt-4 text-sm text-destructive">{error}</p><Button className="mt-4" onClick={() => void loadRoom()}>Reintentar</Button></>}
       </Centered>
     );
   }
@@ -829,7 +862,7 @@ function RoomPage() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-10">
+    <main className="mx-auto w-full max-w-5xl px-4 pb-10 pt-20 sm:px-5">
       <audio ref={audioRef} playsInline className="hidden" />
 
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -840,15 +873,15 @@ function RoomPage() {
           <p className="text-sm text-muted-foreground">{room.playlist_name}</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="rounded-xl border border-border bg-card/60 px-4 py-2 text-center">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Código</p>
-            <p className="font-display text-xl font-bold tracking-[0.3em] text-primary">{room.code}</p>
-          </div>
+           <RoomShare code={room.code} />
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Users className="size-4" /> {players.length}
           </div>
         </div>
       </header>
+
+      {!online && <p role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><WifiOff className="size-4 shrink-0" /> Sin conexión. Intentando reconectar…</p>}
+      {error && room.status !== "lobby" && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
 
       {audioBlocked && room.status === "playing" && (
         <button
@@ -891,7 +924,7 @@ function RoomPage() {
           {room.status === "playing" && (
             <RoundView
               room={room}
-              track={track}
+               track={track?.idx === room.current_round ? track : null}
               remaining={remaining}
               revealing={revealing}
               myGuesses={myRoundGuesses}
@@ -899,13 +932,21 @@ function RoomPage() {
               artistFound={artistFound}
               roundPoints={roundPoints}
               roundDone={roundDone}
+               answerPending={answerPending || !online}
+               revealRemaining={Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
+               completedPlayers={players.filter((player) => {
+                 const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
+                 return room.mode === "type" ? mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist)
+                   : room.mode === "tries" ? mine.length >= 4 || mine.some((g) => g.correct_title || g.correct_artist) : mine.length > 0;
+               }).length}
+               totalPlayers={players.length}
               onAnswer={submitAnswer}
               onReplay={() => setReplayNonce((value) => value + 1)}
             />
           )}
 
           {room.status === "finished" && (
-            <div className="text-center">
+             <div className="rise-in text-center">
               <h2 className="font-display text-3xl font-bold">Fin de la partida</h2>
               {room.team_battle ? (
                 <ol className="mt-6 space-y-3 text-left">
@@ -982,7 +1023,7 @@ function RoomPage() {
                         {room.status === "playing" && answered && (
                           <span className="size-1.5 rounded-full bg-primary" />
                         )}
-                        {playerStreaks.get(p.id)! >= 2 && (
+                         {(playerStreaks.get(p.id) ?? 0) >= 2 && (
                           <span className="text-[10px] font-bold text-primary/80">x1.2</span>
                         )}
                       </span>
@@ -1200,6 +1241,10 @@ function RoundView({
   roundDone,
   onAnswer,
   onReplay,
+  answerPending,
+  revealRemaining,
+  completedPlayers,
+  totalPlayers,
 }: {
   room: RoomRow;
   track: RoundTrackRow | null;
@@ -1210,14 +1255,31 @@ function RoundView({
   artistFound: boolean;
   roundPoints: number;
   roundDone: boolean;
-  onAnswer: (payload: { text: string } | { option: string }) => void;
+  onAnswer: (payload: { text: string } | { option: string }) => Promise<boolean>;
   onReplay: () => void;
+  answerPending: boolean;
+  revealRemaining: number;
+  completedPlayers: number;
+  totalPlayers: number;
 }) {
   const [text, setText] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function sendText(event: React.FormEvent) {
+    event.preventDefault();
+    if (answerPending || text.trim().length < 2) return;
+    const sent = text;
+    if (await onAnswer({ text: sent })) {
+      setText((current) => current === sent ? "" : current);
+      inputRef.current?.focus();
+    }
+  }
 
   useEffect(() => {
     setText("");
+    setPulse(null);
+    lastGuessIdRef.current = null;
   }, [room.current_round]);
 
   useEffect(() => {
@@ -1230,9 +1292,7 @@ function RoundView({
   useEffect(() => {
     const last = myGuesses[myGuesses.length - 1];
     if (!last || lastGuessIdRef.current === last.id) return;
-    const first = lastGuessIdRef.current === null;
     lastGuessIdRef.current = last.id;
-    if (first) return;
     setPulse(last.correct_title || last.correct_artist ? "ok" : "bad");
     const t = window.setTimeout(() => setPulse(null), 650);
     return () => window.clearTimeout(t);
@@ -1275,17 +1335,19 @@ function RoundView({
   }
 
   function renderOptions() {
+    if (!track) return null;
     return (
       <div className="grid gap-3 sm:grid-cols-2">
-        {track!.options.map((option) => (
-          <button
+        {track.options.map((option) => (
+          <Button variant="outline"
             key={option}
-            disabled={myOption !== null}
-            onClick={() => onAnswer({ option })}
-            className={optionClass(option)}
+            disabled={myOption !== null || answerPending || revealing}
+            onClick={() => void onAnswer({ option })}
+            className={`${optionClass(option)} h-auto min-h-20 justify-start whitespace-normal break-words disabled:opacity-100`}
           >
+            {myOption !== null && option === correctOption && <Check className="shrink-0" />}
             {option}
-          </button>
+          </Button>
         ))}
       </div>
     );
@@ -1297,10 +1359,12 @@ function RoundView({
         <span>
           Ronda {room.current_round + 1} / {room.rounds}
         </span>
-        <span className="font-display text-2xl font-bold text-primary">
+        <span className={`font-display text-2xl font-bold tabular-nums ${remaining <= 5 && !revealing ? "text-destructive" : "text-primary"}`}>
           {Math.ceil(remaining)}s
         </span>
       </div>
+
+      {!revealing && <p role="status" className="mt-3 text-right text-xs text-muted-foreground">{answerPending ? "Enviando…" : `${completedPlayers}/${totalPlayers} jugadores completaron la ronda`}</p>}
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-200"
@@ -1356,6 +1420,8 @@ function RoundView({
             >
               {roundPoints > 0 ? `+${roundPoints} puntos` : "Sin puntos esta ronda"}
             </p>
+            <p role="status" className="mt-5 text-xs tabular-nums text-muted-foreground">{room.current_round + 1 >= room.rounds ? "Resultados finales" : "Siguiente ronda"} en {Math.ceil(revealRemaining)}s</p>
+            <a href={`https://open.spotify.com/search/${encodeURIComponent(`${track.title} ${track.artist}`)}`} target="_blank" rel="noreferrer" className="mt-3 inline-block text-xs text-primary underline underline-offset-4">Buscar en Spotify ↗</a>
           </div>
         ) : (
           <div className="flex h-40 items-end gap-1.5">
@@ -1409,26 +1475,25 @@ function RoundView({
                   Tienes {4 - myGuesses.length} intentos restantes. Cada fallo alarga la pista y baja los puntos.
                 </p>
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    onAnswer({ text });
-                    setText("");
-                  }}
+                  onSubmit={sendText}
                   className="flex gap-2"
                 >
                   <input
                     value={text}
+                    ref={inputRef}
+                    aria-label="Tu respuesta"
+                    maxLength={200}
                     onChange={(e) => setText(e.target.value)}
                     autoFocus
                     placeholder="Escribe la canción o el artista…"
                     className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
                   />
-                  <button
+                  <Button size="icon" className="size-11 shrink-0" aria-label="Enviar respuesta" title="Enviar respuesta"
                     type="submit"
-                    className="glow rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                    disabled={answerPending || text.trim().length < 2}
                   >
-                    Enviar
-                  </button>
+                    {answerPending ? <Loader2 className="animate-spin" /> : <Send />}
+                  </Button>
                 </form>
               </div>
             )
@@ -1518,16 +1583,14 @@ function RoundView({
                 </p>
               ) : (
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    sfx.send();
-                    onAnswer({ text });
-                    setText("");
-                  }}
+                  onSubmit={sendText}
                   className="mt-4 flex gap-2"
                 >
                   <input
                     value={text}
+                    ref={inputRef}
+                    aria-label="Tu respuesta"
+                    maxLength={200}
                     onChange={(e) => setText(e.target.value)}
                     autoFocus
                     placeholder={
@@ -1535,12 +1598,12 @@ function RoundView({
                     }
                     className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
                   />
-                  <button
+                  <Button size="icon" className="size-11 shrink-0" aria-label="Enviar respuesta" title="Enviar respuesta"
                     type="submit"
-                    className="glow rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground"
+                    disabled={answerPending || text.trim().length < 2}
                   >
-                    Enviar
-                  </button>
+                    {answerPending ? <Loader2 className="animate-spin" /> : <Send />}
+                  </Button>
                 </form>
               )}
             </div>
