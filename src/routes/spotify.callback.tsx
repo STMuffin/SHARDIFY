@@ -12,6 +12,8 @@ export const Route = createFileRoute("/spotify/callback")({
       { property: "og:title", content: "Conectando Spotify — SHARDIFY" },
       { property: "og:description", content: "Ventana de conexión con tu cuenta de Spotify." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: SpotifyCallback,

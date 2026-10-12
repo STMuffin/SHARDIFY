@@ -36,6 +36,8 @@ export const Route = createFileRoute("/")({
           "Crea una sala, pega cualquier playlist de Spotify y compite adivinando canciones: escribe el título y el artista o elige entre cuatro opciones.",
       },
       { property: "og:title", content: "SHARDIFY — Blind test multijugador" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       {
         property: "og:description",
         content: "Salas en vivo, playlists de Spotify y canciones aleatorias en cada partida.",
@@ -245,7 +247,7 @@ function Home() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+    <main className="mx-auto w-full max-w-6xl px-4 pb-10 pt-20 sm:px-6">
       <div className="grid gap-4 md:grid-cols-3 md:gap-5">
         <section className="panel sheen rise-in col-span-full p-7 text-center sm:p-10">
           <span className="pulse-ring inline-flex items-center gap-2 rounded-full border border-border bg-background/50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">

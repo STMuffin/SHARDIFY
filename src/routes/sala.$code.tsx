@@ -384,7 +384,7 @@ function RoomPage() {
     const shouldLimitPreview = room?.mode === "tries" && typeof triesPreviewSeconds === "number";
     const datasetKey = shouldLimitPreview
       ? `tries-${track.idx}-${triesPreviewSeconds}-${replayNonce}`
-      : `track-${track.idx}`;
+      : `track-${track.id}`;
 
     if (audio.dataset["key"] !== datasetKey) {
       audio.dataset["key"] = datasetKey;
@@ -750,7 +750,7 @@ function RoomPage() {
       else sfx.wrong();
       if (points > 0) {
         const { error: scoreError } = await db.from("players").update({ score: me.score + points }).eq("id", me.id);
-        if (scoreError) setError("Réponse enregistrée, mais les points n’ont pas pu être actualisés.".replace("Réponse enregistrée, mais les points n’ont pas pu être actualisés.", "Respuesta guardada, pero no se pudieron actualizar los puntos."));
+        if (scoreError) setError("Respuesta guardada, pero no se pudieron actualizar los puntos.");
       }
       await loadGuesses(room.id);
       await loadPlayers(room.id);
@@ -1363,7 +1363,7 @@ function RoundView({
         </span>
       </div>
 
-      {!revealing && <p role="status" className="mt-3 text-right text-xs text-muted-foreground">{answerPending ? "Envoi en cours…".replace("Envoi en cours…", "Enviando…") : `${completedPlayers}/${totalPlayers} jugadores completaron la ronda`}</p>}
+      {!revealing && <p role="status" className="mt-3 text-right text-xs text-muted-foreground">{answerPending ? "Enviando…" : `${completedPlayers}/${totalPlayers} jugadores completaron la ronda`}</p>}
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-200"
