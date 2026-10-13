@@ -280,7 +280,7 @@ function RoomPage() {
     ? (now + clockOffset - new Date(room.round_started_at).getTime()) / 1000
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
-  const revealing = room?.status === "playing" && remaining <= 0;
+  const timeUp = remaining <= 0;
   const myRoundGuesses = useMemo(
     () =>
       guesses
