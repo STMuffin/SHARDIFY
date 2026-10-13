@@ -280,7 +280,7 @@ function RoomPage() {
     ? (now + clockOffset - new Date(room.round_started_at).getTime()) / 1000
     : 0;
   const remaining = Math.max(0, seconds - elapsed);
-  const revealing = room?.status === "playing" && remaining <= 0;
+  const timeUp = remaining <= 0;
   const myRoundGuesses = useMemo(
     () =>
       guesses
@@ -311,6 +311,8 @@ function RoomPage() {
       return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
     });
   }, [players, guesses, room]);
+  // Reveal locally as soon as everyone answered — no need to wait for the host
+  const revealing = room?.status === "playing" && (timeUp || everyoneDone);
 
   // Countdown ticks in the last seconds of a round
   const lastTickRef = useRef(-1);
@@ -933,7 +935,7 @@ function RoomPage() {
               roundPoints={roundPoints}
               roundDone={roundDone}
                answerPending={answerPending || !online}
-               revealRemaining={Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
+               revealRemaining={remaining > 0 ? REVEAL_SECONDS : Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
                completedPlayers={players.filter((player) => {
                  const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
                  return room.mode === "type" ? mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist)
