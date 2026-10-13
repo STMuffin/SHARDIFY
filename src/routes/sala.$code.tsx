@@ -683,12 +683,12 @@ function RoomPage() {
     void (async () => {
       await db
         .from("rooms")
-        .update({ round_started_at: new Date(Date.now() - seconds * 1000).toISOString() })
+        .update({ round_started_at: new Date(Date.now() + clockOffset - seconds * 1000 - 50).toISOString() })
         .eq("id", room.id);
       await loadRoom();
       cuttingRef.current = false;
     })();
-  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom]);
+  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom, clockOffset]);
 
 
 
