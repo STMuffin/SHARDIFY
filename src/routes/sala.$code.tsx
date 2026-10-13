@@ -688,7 +688,7 @@ function RoomPage() {
       await loadRoom();
       cuttingRef.current = false;
     })();
-  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom]);
+  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom, clockOffset]);
 
 
 
