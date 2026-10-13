@@ -311,6 +311,8 @@ function RoomPage() {
       return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
     });
   }, [players, guesses, room]);
+  // Reveal locally as soon as everyone answered — no need to wait for the host
+  const revealing = room?.status === "playing" && (timeUp || everyoneDone);
 
   // Countdown ticks in the last seconds of a round
   const lastTickRef = useRef(-1);
