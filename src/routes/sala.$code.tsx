@@ -935,7 +935,7 @@ function RoomPage() {
               roundPoints={roundPoints}
               roundDone={roundDone}
                answerPending={answerPending || !online}
-               revealRemaining={Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
+               revealRemaining={remaining > 0 ? REVEAL_SECONDS : Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
                completedPlayers={players.filter((player) => {
                  const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
                  return room.mode === "type" ? mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist)
