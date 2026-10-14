@@ -140,15 +140,20 @@ function RoomPage() {
     let cancelled = false;
     const sync = async () => {
       try {
-        const url = import.meta.env['VITE_SUPABASE_URL'];
-        if (!url) return;
-        const started = Date.now();
-        const res = await fetch(`${url}/rest/v1/`, { method: "HEAD" });
-        const dateHeader = res.headers.get("date");
-        if (!dateHeader || cancelled) return;
-        const rtt = Date.now() - started;
-        const serverNow = new Date(dateHeader).getTime() + rtt / 2;
-        if (Number.isFinite(serverNow)) setClockOffset(serverNow - Date.now());
+        // Browsers hide the Date header (CORS), so ask the database for its clock.
+        let best: { rtt: number; offset: number } | null = null;
+        for (let i = 0; i < 3; i++) {
+          const started = Date.now();
+          const { data, error } = await (supabase as any).rpc("server_now");
+          const ended = Date.now();
+          if (error || !data) continue;
+          const server = new Date(data as string).getTime();
+          if (!Number.isFinite(server)) continue;
+          const rtt = ended - started;
+          const offset = server - (started + rtt / 2);
+          if (!best || rtt < best.rtt) best = { rtt, offset };
+        }
+        if (best && !cancelled) setClockOffset(best.offset);
       } catch {
         /* keep local clock */
       }
