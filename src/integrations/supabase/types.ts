@@ -122,6 +122,7 @@ export type Database = {
           mode: string
           playlist_image: string | null
           playlist_name: string
+          round_revealed_at: string | null
           round_started_at: string | null
           rounds: number
           seconds: number
@@ -138,6 +139,7 @@ export type Database = {
           mode?: string
           playlist_image?: string | null
           playlist_name?: string
+          round_revealed_at?: string | null
           round_started_at?: string | null
           rounds?: number
           seconds?: number
@@ -154,6 +156,7 @@ export type Database = {
           mode?: string
           playlist_image?: string | null
           playlist_name?: string
+          round_revealed_at?: string | null
           round_started_at?: string | null
           rounds?: number
           seconds?: number
@@ -169,6 +172,7 @@ export type Database = {
           cover: string | null
           id: string
           idx: number
+          option_covers: Json
           options: Json
           preview_url: string
           room_id: string
@@ -180,6 +184,7 @@ export type Database = {
           cover?: string | null
           id?: string
           idx: number
+          option_covers?: Json
           options?: Json
           preview_url: string
           room_id: string
@@ -191,6 +196,7 @@ export type Database = {
           cover?: string | null
           id?: string
           idx?: number
+          option_covers?: Json
           options?: Json
           preview_url?: string
           room_id?: string
