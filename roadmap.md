@@ -5,6 +5,6 @@
 - [x] Verify real multiplayer gameplay and existing tests.
 
 # Shared round results and answer covers
-- [ ] Persist one shared reveal time for all six modes and use it for round transitions.
-- [ ] Show each answer's cover in Blend and multiple choice.
-- [ ] Test completion rules and verify multiplayer results and covers in the browser.
+- [x] Persist one shared reveal time for all six modes and use it for round transitions.
+- [x] Show each answer's cover in Blend and multiple choice.
+- [x] Test completion rules and verify multiplayer results and covers in the browser.
