@@ -6,6 +6,9 @@ import {
   computeRoundPoints,
   getPlayerWinStreak,
   getPreviewStartSeconds,
+  buildOptionCovers,
+  getRoundTiming,
+  isPlayerRoundComplete,
 } from './room.ts';
 
 test('buildBlendTracks merges unique tracks from all players', () => {
@@ -81,3 +84,45 @@ test('getPlayerWinStreak counts only consecutive positive rounds', () => {
   assert.equal(getPlayerWinStreak(guesses, 'p1', 3), 1);
   assert.equal(getPlayerWinStreak(guesses, 'p1', 2), 0);
 });
+
+for (const mode of ['choice', 'blend', 'owner', 'chronology']) {
+  test(`${mode} completes after any answer, including a wrong answer`, () => {
+    assert.equal(isPlayerRoundComplete(mode, []), false);
+    assert.equal(isPlayerRoundComplete(mode, [{ correct_title: false, correct_artist: false }]), true);
+  });
+}
+
+test('type completes only when both title and artist have been found across messages', () => {
+  const title = { correct_title: true, correct_artist: false };
+  assert.equal(isPlayerRoundComplete('type', [title]), false);
+  assert.equal(isPlayerRoundComplete('type', [title, { correct_title: false, correct_artist: true }]), true);
+});
+
+test('tries completes on a hit or after four failed attempts', () => {
+  const miss = { correct_title: false, correct_artist: false };
+  assert.equal(isPlayerRoundComplete('tries', [miss, miss, miss]), false);
+  assert.equal(isPlayerRoundComplete('tries', [miss, miss, miss, miss]), true);
+  assert.equal(isPlayerRoundComplete('tries', [{ correct_title: false, correct_artist: true }]), true);
+});
+
+test('all clients reveal and advance from the shared early reveal time, not the original deadline', () => {
+  const start = '2026-10-14T00:00:00.000Z';
+  const reveal = '2026-10-14T00:00:05.000Z';
+  assert.equal(getRoundTiming(start, reveal, 30, Date.parse(start) + 4000, 6).revealing, false);
+  const timing = getRoundTiming(start, reveal, 30, Date.parse(start) + 6000, 6);
+  assert.equal(timing.revealing, true);
+  assert.equal(timing.remaining, 0);
+  assert.equal(timing.revealRemaining, 5);
+  assert.equal(getRoundTiming(start, reveal, 30, Date.parse(start) + 11000, 6).revealRemaining, 0);
+  assert.equal(getRoundTiming(start, null, 30, Date.parse(start) + 30000, 6).revealing, true);
+});
+
+for (const mode of ['choice', 'blend']) {
+  test(`${mode} covers correspond to their own answer and preserve the correct artwork`, () => {
+    const correct = { title: 'One', artist: 'A', cover: '/correct.jpg' };
+    assert.deepEqual(buildOptionCovers(['One — A', 'Two — B', 'Three — C'], correct, [
+      { title: 'One', artist: 'A', cover: '/old.jpg' },
+      { title: 'Two', artist: 'B', cover: '/second.jpg' },
+    ]), { 'One — A': '/correct.jpg', 'Two — B': '/second.jpg', 'Three — C': null });
+  });
+}
