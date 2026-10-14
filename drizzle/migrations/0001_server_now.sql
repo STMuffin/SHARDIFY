@@ -1,0 +1,2 @@
+CREATE OR REPLACE FUNCTION public.server_now() RETURNS timestamptz LANGUAGE sql VOLATILE SET search_path = public AS $$ SELECT clock_timestamp() $$;
+GRANT EXECUTE ON FUNCTION public.server_now() TO anon, authenticated, service_role;
