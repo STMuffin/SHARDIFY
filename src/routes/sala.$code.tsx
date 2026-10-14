@@ -144,7 +144,7 @@ function RoomPage() {
         let best: { rtt: number; offset: number } | null = null;
         for (let i = 0; i < 3; i++) {
           const started = Date.now();
-          const { data, error } = await (supabase as any).rpc("server_now");
+          const { data, error } = await (db as any).rpc("server_now");
           const ended = Date.now();
           if (error || !data) continue;
           const server = new Date(data as string).getTime();
