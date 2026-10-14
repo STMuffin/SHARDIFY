@@ -1,9 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
 import { normalize, similarity } from "./match";
 
-type ChoiceTrack = { title: string; artist: string };
+type ChoiceTrack = { title: string; artist: string; cover?: string | null };
 
 const label = (t: ChoiceTrack) => `${t.title} — ${t.artist}`;
+
+export function buildOptionCovers(options: string[], correct: ChoiceTrack, pool: ChoiceTrack[]): Record<string, string | null> {
+  const covers = new Map(pool.map((track) => [label(track), track.cover ?? null]));
+  covers.set(label(correct), correct.cover ?? covers.get(label(correct)) ?? null);
+  return Object.fromEntries(options.map((option) => [option, covers.get(option) ?? null]));
+}
+
+export function isPlayerRoundComplete(mode: string, guesses: Array<{ correct_title: boolean; correct_artist: boolean }>): boolean {
+  if (["choice", "blend", "owner", "chronology"].includes(mode)) return guesses.length > 0;
+  if (mode === "tries") return guesses.length >= 4 || guesses.some((guess) => guess.correct_title || guess.correct_artist);
+  return guesses.some((guess) => guess.correct_title) && guesses.some((guess) => guess.correct_artist);
+}
+
+export function getRoundTiming(startedAt: string | null, revealedAt: string | null | undefined, seconds: number, now: number, revealSeconds: number) {
+  const start = startedAt ? Date.parse(startedAt) : now;
+  const deadline = start + seconds * 1000;
+  const revealAt = revealedAt ? Math.min(Date.parse(revealedAt), deadline) : deadline;
+  return {
+    revealing: now >= revealAt,
+    remaining: Math.max(0, (revealAt - now) / 1000),
+    revealRemaining: Math.max(0, (revealAt + revealSeconds * 1000 - now) / 1000),
+  };
+}
 
 /**
  * Builds 4 multiple-choice options: the right answer plus plausible wrong ones
@@ -56,6 +79,7 @@ export type RoomRow = {
   status: string;
   current_round: number;
   round_started_at: string | null;
+  round_revealed_at?: string | null;
   team_battle: boolean;
 };
 
@@ -81,6 +105,7 @@ export type RoundTrackRow = {
   preview_url: string;
   cover: string | null;
   options: string[];
+  option_covers?: Record<string, string | null>;
   source_player_name: string | null;
 };
 

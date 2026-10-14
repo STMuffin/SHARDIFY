@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Crown, Loader2, Play, Send, Users, Volume2, WifiOff } from "lucide-react";
+import { Check, Crown, Loader2, Music2, Play, Send, Users, Volume2, WifiOff } from "lucide-react";
 
 import { AnimatedScore } from "@/components/animated-score";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ import { isClose, nearMissHint } from "@/lib/match";
 import { sfx } from "@/lib/sfx";
 import {
   buildBlendTracks,
+  buildOptionCovers,
+  getRoundTiming,
+  isPlayerRoundComplete,
   computeRoundPoints,
   db,
   getClientKey,
@@ -279,8 +282,8 @@ function RoomPage() {
   const elapsed = room?.round_started_at
     ? (now + clockOffset - new Date(room.round_started_at).getTime()) / 1000
     : 0;
-  const remaining = Math.max(0, seconds - elapsed);
-  const timeUp = remaining <= 0;
+  const timing = getRoundTiming(room?.round_started_at ?? null, room?.round_revealed_at, seconds, now + clockOffset, REVEAL_SECONDS);
+  const remaining = timing.remaining;
   const myRoundGuesses = useMemo(
     () =>
       guesses
@@ -292,27 +295,9 @@ function RoomPage() {
   const artistFound = myRoundGuesses.some((g) => g.correct_artist);
   const roundPoints = myRoundGuesses.reduce((sum, g) => sum + g.points, 0);
   const triesAttempt = room?.mode === "tries" ? myRoundGuesses.length : 0;
-  const roundDone =
-    room?.mode === "choice" || room?.mode === "owner" || room?.mode === "chronology" || room?.mode === "blend"
-      ? myRoundGuesses.length > 0
-      : room?.mode === "tries"
-        ? titleFound || artistFound || myRoundGuesses.length >= 4
-        : titleFound && artistFound;
-  const everyoneDone = useMemo(() => {
-    if (!room || room.status !== "playing" || players.length === 0) return false;
-    return players.every((p) => {
-      const mine = guesses.filter(
-        (g) => g.player_id === p.id && g.round_idx === room.current_round,
-      );
-      if (room.mode === "choice" || room.mode === "owner" || room.mode === "chronology" || room.mode === "blend") return mine.length > 0;
-      if (room.mode === "tries") {
-        return mine.length >= 4 || mine.some((g) => g.correct_title) || mine.some((g) => g.correct_artist);
-      }
-      return mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist);
-    });
-  }, [players, guesses, room]);
-  // Reveal locally as soon as everyone answered — no need to wait for the host
-  const revealing = room?.status === "playing" && (timeUp || everyoneDone);
+  const roundDone = isPlayerRoundComplete(room?.mode ?? "type", myRoundGuesses);
+  // Every client uses the same persisted reveal timestamp, including reconnects.
+  const revealing = room?.status === "playing" && timing.revealing;
 
   // Countdown ticks in the last seconds of a round
   const lastTickRef = useRef(-1);
@@ -344,14 +329,14 @@ function RoomPage() {
   // Reveal of the answer
   const revealSoundRef = useRef(false);
   useEffect(() => {
-    const isRevealing = room?.status === "playing" && remaining <= 0;
+    const isRevealing = revealing;
     if (isRevealing && !revealSoundRef.current) {
       revealSoundRef.current = true;
       sfx.reveal();
     } else if (!isRevealing) {
       revealSoundRef.current = false;
     }
-  }, [remaining, room?.status]);
+  }, [revealing, room?.current_round]);
 
   // End of the game
   const finishedSoundRef = useRef(false);
@@ -624,6 +609,7 @@ function RoomPage() {
           preview_url: t.previewUrl,
           cover: t.cover,
           options,
+          option_covers: buildOptionCovers(options, t, allTracks),
           source_player_name: t.sourcePlayerName ?? null,
         };
       });
@@ -659,38 +645,24 @@ function RoomPage() {
   // Host advances rounds automatically after the reveal
   useEffect(() => {
     if (!room || !isHost || room.status !== "playing") return;
-    if (elapsed < seconds + REVEAL_SECONDS || advancingRef.current) return;
+    if (!revealing || timing.revealRemaining > 0 || advancingRef.current) return;
     advancingRef.current = true;
     void (async () => {
       const next = room.current_round + 1;
       if (next >= room.rounds) {
-        await db.from("rooms").update({ status: "finished" }).eq("id", room.id);
+        const { error } = await db.from("rooms").update({ status: "finished" }).eq("id", room.id).eq("current_round", room.current_round);
+        if (error) setError(getErrorMessage(error, "No se pudo terminar la partida."));
       } else {
-        await db
+        const { error } = await db
           .from("rooms")
           .update({ current_round: next, round_started_at: new Date().toISOString() })
-          .eq("id", room.id);
+          .eq("id", room.id).eq("current_round", room.current_round);
+        if (error) setError(getErrorMessage(error, "No se pudo avanzar de ronda."));
       }
       await loadRoom();
       advancingRef.current = false;
     })();
-  }, [room, isHost, elapsed, seconds, loadRoom]);
-
-  // Everyone answered: cut the timer short so the result shows right away
-  const cuttingRef = useRef(false);
-  useEffect(() => {
-    if (!room || !isHost || room.status !== "playing") return;
-    if (!everyoneDone || revealing || cuttingRef.current) return;
-    cuttingRef.current = true;
-    void (async () => {
-      await db
-        .from("rooms")
-        .update({ round_started_at: new Date(Date.now() + clockOffset - seconds * 1000 - 50).toISOString() })
-        .eq("id", room.id);
-      await loadRoom();
-      cuttingRef.current = false;
-    })();
-  }, [room, isHost, everyoneDone, revealing, seconds, loadRoom, clockOffset]);
+  }, [room, isHost, revealing, timing.revealRemaining, loadRoom]);
 
 
 
@@ -754,8 +726,7 @@ function RoomPage() {
         const { error: scoreError } = await db.from("players").update({ score: me.score + points }).eq("id", me.id);
         if (scoreError) setError("Respuesta guardada, pero no se pudieron actualizar los puntos.");
       }
-      await loadGuesses(room.id);
-      await loadPlayers(room.id);
+      await Promise.all([loadGuesses(room.id), loadPlayers(room.id), loadRoom()]);
       return true;
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo enviar tu respuesta. Inténtalo de nuevo."));
@@ -935,11 +906,10 @@ function RoomPage() {
               roundPoints={roundPoints}
               roundDone={roundDone}
                answerPending={answerPending || !online}
-               revealRemaining={remaining > 0 ? REVEAL_SECONDS : Math.max(0, seconds + REVEAL_SECONDS - elapsed)}
+               revealRemaining={timing.revealRemaining}
                completedPlayers={players.filter((player) => {
                  const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
-                 return room.mode === "type" ? mine.some((g) => g.correct_title) && mine.some((g) => g.correct_artist)
-                   : room.mode === "tries" ? mine.length >= 4 || mine.some((g) => g.correct_title || g.correct_artist) : mine.length > 0;
+                 return isPlayerRoundComplete(room.mode, mine);
                }).length}
                totalPlayers={players.length}
               onAnswer={submitAnswer}
@@ -1347,8 +1317,13 @@ function RoundView({
             onClick={() => void onAnswer({ option })}
             className={`${optionClass(option)} h-auto min-h-20 justify-start whitespace-normal break-words disabled:opacity-100`}
           >
+            {(room.mode === "choice" || room.mode === "blend") && (
+              <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary text-muted-foreground">
+                {track.option_covers?.[option] ? <img src={track.option_covers[option] ?? ""} alt={`Portada de ${option}`} className="size-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <Music2 className="size-6" aria-hidden="true" />}
+              </span>
+            )}
+            <span className="min-w-0 flex-1">{option}</span>
             {myOption !== null && option === correctOption && <Check className="shrink-0" />}
-            {option}
           </Button>
         ))}
       </div>
