@@ -1313,13 +1313,15 @@ function RoundView({
         {track.options.map((option) => (
           <Button variant="outline"
             key={option}
+            aria-label={option}
             disabled={myOption !== null || answerPending || revealing}
             onClick={() => void onAnswer({ option })}
             className={`${optionClass(option)} h-auto min-h-20 justify-start whitespace-normal break-words disabled:opacity-100`}
           >
             {(room.mode === "choice" || room.mode === "blend") && (
-              <span className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary text-muted-foreground">
-                {track.option_covers?.[option] ? <img src={track.option_covers[option] ?? ""} alt={`Portada de ${option}`} className="size-full object-cover" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <Music2 className="size-6" aria-hidden="true" />}
+              <span className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary text-muted-foreground">
+                <Music2 className="size-6" aria-hidden="true" />
+                {track.option_covers?.[option] && <img src={track.option_covers[option] ?? ""} alt={`Portada de ${option}`} className="absolute inset-0 size-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
               </span>
             )}
             <span className="min-w-0 flex-1">{option}</span>
