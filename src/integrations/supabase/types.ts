@@ -156,6 +156,7 @@ export type Database = {
       }
       rooms: {
         Row: {
+          blend: boolean
           code: string
           created_at: string
           current_round: number
@@ -173,6 +174,7 @@ export type Database = {
           tracks: Json
         }
         Insert: {
+          blend?: boolean
           code: string
           created_at?: string
           current_round?: number
@@ -190,6 +192,7 @@ export type Database = {
           tracks?: Json
         }
         Update: {
+          blend?: boolean
           code?: string
           created_at?: string
           current_round?: number
