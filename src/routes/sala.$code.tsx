@@ -7,7 +7,6 @@ import { AnimatedScore } from "@/components/animated-score";
 import { Button } from "@/components/ui/button";
 import { RoomShare } from "@/components/room-share";
 import { RoomChat } from "@/components/room-chat";
-import { RoomChat } from "@/components/room-chat";
 import { getMusicVolume, MUSIC_VOLUME_EVENT } from "@/lib/audio-settings";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
