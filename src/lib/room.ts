@@ -81,6 +81,7 @@ export type RoomRow = {
   round_started_at: string | null;
   round_revealed_at?: string | null;
   team_battle: boolean;
+  blend?: boolean;
 };
 
 export type PlayerRow = {
