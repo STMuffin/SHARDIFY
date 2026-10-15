@@ -6,6 +6,7 @@ import { Check, Crown, Loader2, Music2, Play, Send, Users, Volume2, WifiOff } fr
 import { AnimatedScore } from "@/components/animated-score";
 import { Button } from "@/components/ui/button";
 import { RoomShare } from "@/components/room-share";
+import { RoomChat } from "@/components/room-chat";
 import { getMusicVolume, MUSIC_VOLUME_EVENT } from "@/lib/audio-settings";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
@@ -529,6 +530,14 @@ function RoomPage() {
     }
   }
 
+  async function changeMode(mode: string) {
+    if (!room || !isHost || room.status !== "lobby") return;
+    setError(null);
+    const { error } = await db.from("rooms").update({ mode }).eq("id", room.id);
+    if (error) setError(getErrorMessage(error, "No se pudo cambiar el modo."));
+    await loadRoom();
+  }
+
   async function startGame() {
     if (!room) return;
     setBusy(true);
@@ -558,9 +567,12 @@ function RoomPage() {
       if (room.mode === "chronology" && candidates.length < 2) {
         throw new Error("El modo Cronología necesita canciones con fecha de lanzamiento.");
       }
-      const { tracks: playable } = await runFindTracks({
-        data: { candidates, need: room.rounds },
+      const { tracks: found } = await runFindTracks({
+        data: { candidates, need: room.rounds + 6 },
       });
+      // Download every clip before starting so no round stays silent.
+      const checks = await Promise.all(found.map((t) => preloadClip(t.previewUrl)));
+      const playable = found.filter((_, i) => checks[i]).slice(0, room.rounds);
       if (!playable.length) throw new Error("No encontré audio para las canciones de esta playlist.");
 
       const rows = playable.map((t, idx) => {
@@ -886,6 +898,7 @@ function RoomPage() {
               onStart={startGame}
               onChangePlaylist={changePlaylist}
               onUploadPlayerPlaylist={uploadPlayerPlaylist}
+              onChangeMode={changeMode}
               error={error}
             />
 
@@ -1009,6 +1022,7 @@ function RoomPage() {
                   );
                 })}
           </ul>
+          <RoomChat roomId={room.id} playerId={me.id} name={me.name} />
         </aside>
       </div>
     </main>
@@ -1028,6 +1042,7 @@ function Lobby({
   onStart,
   onChangePlaylist,
   onUploadPlayerPlaylist,
+  onChangeMode,
   error,
 }: {
   isHost: boolean;
@@ -1042,6 +1057,7 @@ function Lobby({
   onStart: () => void;
   onChangePlaylist: (urls: string[]) => void;
   onUploadPlayerPlaylist: (urls: string[]) => void;
+  onChangeMode: (mode: string) => void;
   error: string | null;
 }) {
   const runClientId = useServerFn(getSpotifyClientId);
@@ -1106,23 +1122,31 @@ function Lobby({
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <Stat label="Canciones" value={String(rounds)} />
         <Stat label="Segundos" value={String(seconds)} />
-        <Stat
-          label="Modo"
-          value={
-            mode === "choice"
-              ? "Opción múltiple"
-              : mode === "blend"
-                ? "Blend"
-                : mode === "owner"
-                  ? "¿De quién es?"
-                  : mode === "tries"
-                    ? "4 intentos"
-                    : mode === "chronology"
-                      ? "Cronología"
-                      : "Escribir"
-          }
-        />
+        <Stat label="Modo" value={MODE_LABELS[mode] ?? "Escribir"} />
       </div>
+      {isHost && (
+        <div className="mt-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Cambiar modo de juego</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {Object.entries(MODE_LABELS).map(([value, text]) => (
+              <button
+                key={value}
+                type="button"
+                disabled={busy}
+                aria-pressed={mode === value}
+                onClick={() => mode !== value && onChangeMode(value)}
+                className={
+                  mode === value
+                    ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
+                    : "rounded-full border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-60"
+                }
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {mode === "owner" || mode === "blend" ? (
         <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/40 p-4 text-left">
           {mode === "blend" ? (
@@ -1613,4 +1637,32 @@ function Centered({ children }: { children: React.ReactNode }) {
       {children}
     </main>
   );
+}
+
+const MODE_LABELS: Record<string, string> = {
+  type: "Escribir",
+  choice: "Opción múltiple",
+  tries: "4 intentos",
+  chronology: "Cronología",
+  owner: "¿De quién es?",
+  blend: "Blend",
+};
+
+/** Fully downloads one clip; resolves false if it can't be played. */
+function preloadClip(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    const done = (ok: boolean) => {
+      window.clearTimeout(timer);
+      audio.oncanplaythrough = null;
+      audio.onerror = null;
+      resolve(ok);
+    };
+    const timer = window.setTimeout(() => done(false), 12000);
+    audio.preload = "auto";
+    audio.oncanplaythrough = () => done(true);
+    audio.onerror = () => done(false);
+    audio.src = url;
+    audio.load();
+  });
 }
