@@ -6,6 +6,7 @@ import { Check, Crown, Loader2, Music2, Play, Send, Users, Volume2, WifiOff } fr
 import { AnimatedScore } from "@/components/animated-score";
 import { Button } from "@/components/ui/button";
 import { RoomShare } from "@/components/room-share";
+import { RoomChat } from "@/components/room-chat";
 import { getMusicVolume, MUSIC_VOLUME_EVENT } from "@/lib/audio-settings";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
@@ -1636,4 +1637,32 @@ function Centered({ children }: { children: React.ReactNode }) {
       {children}
     </main>
   );
+}
+
+const MODE_LABELS: Record<string, string> = {
+  type: "Escribir",
+  choice: "Opción múltiple",
+  tries: "4 intentos",
+  chronology: "Cronología",
+  owner: "¿De quién es?",
+  blend: "Blend",
+};
+
+/** Fully downloads one clip; resolves false if it can't be played. */
+function preloadClip(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const audio = new Audio();
+    const done = (ok: boolean) => {
+      window.clearTimeout(timer);
+      audio.oncanplaythrough = null;
+      audio.onerror = null;
+      resolve(ok);
+    };
+    const timer = window.setTimeout(() => done(false), 12000);
+    audio.preload = "auto";
+    audio.oncanplaythrough = () => done(true);
+    audio.onerror = () => done(false);
+    audio.src = url;
+    audio.load();
+  });
 }
