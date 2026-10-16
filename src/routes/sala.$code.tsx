@@ -538,11 +538,21 @@ function RoomPage() {
     await loadRoom();
   }
 
+  async function toggleBlend(next: boolean) {
+    if (!room || !isHost || room.status !== "lobby") return;
+    setError(null);
+    const update = room.mode === "blend" ? { blend: next, mode: "choice" } : { blend: next };
+    const { error } = await db.from("rooms").update(update).eq("id", room.id);
+    if (error) setError(getErrorMessage(error, "No se pudo cambiar Blend."));
+    await loadRoom();
+  }
+
   async function startGame() {
     if (!room) return;
     setBusy(true);
     setError(null);
     try {
+      const blendOn = Boolean(room.blend) || room.mode === "blend";
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
       const allTracks =
         room.mode === "owner"
@@ -554,10 +564,10 @@ function RoomPage() {
                 }))),
               ),
             )
-          : room.mode === "blend"
+          : blendOn
             ? shuffle(buildBlendTracks(players))
             : room.tracks ?? [];
-      if ((room.mode === "owner" || room.mode === "blend") && players.some((player) => !player.playlist_tracks?.length)) {
+      if ((room.mode === "owner" || blendOn) && players.some((player) => !player.playlist_tracks?.length)) {
         throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
       }
       const pool = shuffle(allTracks);
@@ -890,7 +900,9 @@ function RoomPage() {
               busy={busy}
               rounds={room.rounds}
               seconds={room.seconds}
-              mode={room.mode}
+              mode={room.mode === "blend" ? "choice" : room.mode}
+              blend={Boolean(room.blend) || room.mode === "blend"}
+              onToggleBlend={toggleBlend}
               players={players}
               me={me}
               total={room.tracks?.length ?? 0}
@@ -1043,8 +1055,12 @@ function Lobby({
   onChangePlaylist,
   onUploadPlayerPlaylist,
   onChangeMode,
+  blend,
+  onToggleBlend,
   error,
 }: {
+  blend: boolean;
+  onToggleBlend: (next: boolean) => void;
   isHost: boolean;
   busy: boolean;
   rounds: number;
@@ -1066,7 +1082,8 @@ function Lobby({
   const [playlistsLoading, setPlaylistsLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const spotify = isSpotifyConnected();
-  const canUploadPlaylist = mode === "owner" || mode === "blend" || isHost;
+  const usesPlayerLists = mode === "owner" || blend;
+  const canUploadPlaylist = usesPlayerLists || isHost;
 
   useEffect(() => {
     if (!canUploadPlaylist || !spotify) {
@@ -1106,7 +1123,7 @@ function Lobby({
   function applyPlaylists() {
     const urls = [...[...selected].map(playlistUrl), ...(newPlaylist.trim() ? [newPlaylist.trim()] : [])];
     if (!urls.length) return;
-    if (mode === "owner" || mode === "blend") onUploadPlayerPlaylist(urls);
+    if (usesPlayerLists) onUploadPlayerPlaylist(urls);
     else onChangePlaylist(urls);
     setNewPlaylist("");
     setSelected(new Set());
@@ -1128,7 +1145,7 @@ function Lobby({
         <div className="mt-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Cambiar modo de juego</p>
           <div className="mt-2 flex flex-wrap justify-center gap-2">
-            {Object.entries(MODE_LABELS).map(([value, text]) => (
+            {Object.entries(MODE_LABELS).filter(([value]) => value !== "blend").map(([value, text]) => (
               <button
                 key={value}
                 type="button"
@@ -1147,9 +1164,27 @@ function Lobby({
           </div>
         </div>
       )}
-      {mode === "owner" || mode === "blend" ? (
+      {isHost && mode !== "owner" && (
+        <label className="mx-auto mt-4 flex max-w-md items-center justify-between gap-3 rounded-xl border border-border bg-background/40 px-4 py-3 text-left hover:border-primary/40">
+          <span>
+            <span className="block text-sm font-semibold">Blend</span>
+            <span className="block text-xs text-muted-foreground">Mezcla las playlists de todos los jugadores.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={blend}
+            disabled={busy}
+            onChange={(e) => onToggleBlend(e.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+        </label>
+      )}
+      {!isHost && blend && mode !== "owner" && (
+        <p className="mt-3 text-xs font-bold text-primary">Blend activado: sube tu playlist para mezclarla.</p>
+      )}
+      {usesPlayerLists ? (
         <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/40 p-4 text-left">
-          {mode === "blend" ? (
+          {mode !== "owner" ? (
             <>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 Mezcla de playlists
@@ -1208,7 +1243,7 @@ function Lobby({
               disabled={busy}
               className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
             >
-              {mode === "owner" || mode === "blend" ? "Cargar playlist" : "Cambiar"}
+              {usesPlayerLists ? "Cargar playlist" : "Cambiar"}
             </button>
           </form>
         </div>
@@ -1217,7 +1252,7 @@ function Lobby({
       {isHost ? (
         <button
           onClick={onStart}
-          disabled={busy || ((mode === "owner" || mode === "blend") && players.some((player) => !player.playlist_tracks?.length))}
+          disabled={busy || (usesPlayerLists && players.some((player) => !player.playlist_tracks?.length))}
           className="glow mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
         >
           <Play className="size-4" /> Empezar partida
@@ -1413,7 +1448,7 @@ function RoundView({
             <p className="reveal-line text-sm text-muted-foreground" style={{ animationDelay: "280ms" }}>
               {track.artist}
             </p>
-            {(room.mode === "owner" || room.mode === "blend") && track.source_player_name && (
+            {(room.mode === "owner" || room.blend || room.mode === "blend") && track.source_player_name && (
               <p className="reveal-line mt-3 text-sm font-bold text-primary" style={{ animationDelay: "380ms" }}>
                 {room.mode === "blend"
                   ? `Aportada por ${track.source_player_name}`

@@ -192,12 +192,13 @@ function Home() {
           code,
           host_key: hostKey,
           playlist_name:
-            mode === "owner" ? "Playlists de jugadores" : mode === "blend" ? "Blend de jugadores" : data.name,
-          playlist_image: mode === "owner" || mode === "blend" ? null : data.image,
-          tracks: mode === "owner" || mode === "blend" ? [] : data.tracks,
+            mode === "owner" ? "Playlists de jugadores" : usePlayerPlaylists ? "Blend de jugadores" : data.name,
+          playlist_image: usePlayerPlaylists ? null : data.image,
+          tracks: usePlayerPlaylists ? [] : data.tracks,
           rounds,
           seconds,
           mode,
+          blend: blend && mode !== "owner",
           team_battle: teamBattle,
         })
         .select()
@@ -217,7 +218,7 @@ function Home() {
         client_key: hostKey,
         is_host: true,
         ...(teamBattle ? { team: "rojo" } : {}),
-        ...(mode === "owner" || mode === "blend"
+        ...(usePlayerPlaylists
           ? { playlist_name: data.name, playlist_tracks: data.tracks }
           : {}),
       };
@@ -371,13 +372,6 @@ function Home() {
                 description="Escucha una canción y decide si salió antes o después de otra."
               />
               <ModeCard
-                active={mode === "blend"}
-                onClick={() => setMode("blend")}
-                icon={<Radio className="size-5" />}
-                title="Blend"
-                description="Cada jugador sube su playlist y la app genera una mezcla común para adivinar canciones."
-              />
-              <ModeCard
                 active={mode === "owner"}
                 onClick={() => setMode("owner")}
                 icon={<Radio className="size-5" />}
@@ -386,6 +380,21 @@ function Home() {
               />
             </div>
           </Field>
+
+          {mode !== "owner" && (
+            <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 hover:border-primary/40">
+              <div>
+                <div className="text-sm font-semibold">Blend</div>
+                <div className="text-xs text-muted-foreground">Mezcla las playlists de todos los jugadores en este modo.</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={blend}
+                onChange={(e) => setBlend(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+            </label>
+          )}
 
           <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 hover:border-primary/40">
             <div>
