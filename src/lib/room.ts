@@ -283,20 +283,51 @@ export function buildBlendTracks(
   >();
 
   for (const player of players) {
+    const name = player.name?.trim();
     for (const track of player.playlist_tracks ?? []) {
-      const key = `${track.title.trim().toLowerCase()}|${track.artist.trim().toLowerCase()}`;
-      if (!unique.has(key)) {
-        unique.set(key, {
-          ...track,
-          title: track.title.trim(),
-          artist: track.artist.trim(),
-          ...(player.name?.trim() ? { sourcePlayerName: player.name.trim() } : {}),
-        });
+      const key = `${normalize(track.title)}|${normalize(track.artist)}`;
+      const existing = unique.get(key);
+      if (existing) {
+        if (name) {
+          const owners = splitOwners(existing.sourcePlayerName);
+          if (!owners.includes(name)) existing.sourcePlayerName = joinOwners([...owners, name]);
+        }
+        continue;
       }
+      unique.set(key, {
+        ...track,
+        title: track.title.trim(),
+        artist: track.artist.trim(),
+        ...(name ? { sourcePlayerName: name } : {}),
+      });
     }
   }
 
   return [...unique.values()];
+}
+
+const OWNER_SEP = "\n";
+
+/** A track's owners are stored newline-separated in one text column. */
+export function splitOwners(value: string | null | undefined): string[] {
+  return (value ?? "").split(OWNER_SEP).map((s) => s.trim()).filter(Boolean);
+}
+
+export function joinOwners(names: string[]): string {
+  return [...new Set(names)].join(OWNER_SEP);
+}
+
+export function formatOwners(value: string | null | undefined): string {
+  const names = splitOwners(value);
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} y ${names[names.length - 1]}`;
+}
+
+/** Owner-mode options: every owner is a right answer, padded with other players up to 4. */
+export function buildOwnerOptions(owners: string[], allNames: string[]): string[] {
+  const others = shuffle([...new Set(allNames)].filter((n) => n && !owners.includes(n)));
+  const right = owners.slice(0, 4);
+  return shuffle([...right, ...others.slice(0, Math.max(0, 4 - right.length))]);
 }
 
 export function shuffle<T>(items: T[]): T[] {
