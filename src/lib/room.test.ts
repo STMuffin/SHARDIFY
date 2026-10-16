@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   buildBlendTracks,
+  buildOwnerOptions,
+  splitOwners,
   computeRoundPoints,
   getPlayerWinStreak,
   getPreviewStartSeconds,
@@ -33,6 +35,14 @@ test('buildBlendTracks merges unique tracks from all players', () => {
   assert.ok(tracks.some((track) => track.title === 'Song 1' && track.artist === 'Artist A'));
   assert.ok(tracks.some((track) => track.title === 'Song 2' && track.artist === 'Artist B'));
   assert.ok(tracks.some((track) => track.title === 'Song 3' && track.artist === 'Artist C'));
+  const shared = tracks.find((track) => track.title === 'Song 1');
+  assert.deepEqual(splitOwners(shared?.sourcePlayerName), ['Ana', 'Luis']);
+});
+
+test('buildOwnerOptions includes every owner as an option', () => {
+  const options = buildOwnerOptions(['Ana', 'Luis'], ['Ana', 'Luis', 'Eva', 'Pau', 'Leo']);
+  assert.equal(options.length, 4);
+  assert.ok(options.includes('Ana') && options.includes('Luis'));
 });
 
 test('getPreviewStartSeconds is deterministic for the same track and attempt', () => {

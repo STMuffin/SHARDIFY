@@ -22,6 +22,9 @@ import { isClose, nearMissHint } from "@/lib/match";
 import { sfx } from "@/lib/sfx";
 import {
   buildBlendTracks,
+  buildOwnerOptions,
+  splitOwners,
+  formatOwners,
   buildOptionCovers,
   getRoundTiming,
   isPlayerRoundComplete,
@@ -555,18 +558,9 @@ function RoomPage() {
       const blendOn = Boolean(room.blend) || room.mode === "blend";
       await db.from("rooms").update({ status: "loading" }).eq("id", room.id);
       const allTracks =
-        room.mode === "owner"
-          ? shuffle(
-              players.flatMap((player) =>
-                shuffle((player.playlist_tracks ?? []).map((track) => ({
-                  ...track,
-                  sourcePlayerName: player.name,
-                }))),
-              ),
-            )
-          : blendOn
-            ? shuffle(buildBlendTracks(players))
-            : room.tracks ?? [];
+        room.mode === "owner" || blendOn
+          ? shuffle(buildBlendTracks(players))
+          : room.tracks ?? [];
       if ((room.mode === "owner" || blendOn) && players.some((player) => !player.playlist_tracks?.length)) {
         throw new Error("Todos los jugadores deben cargar una playlist antes de empezar.");
       }
@@ -611,22 +605,10 @@ function RoomPage() {
                   : `Antes de «${chronologyReference.title}»`,
               ]
             : room.mode === "owner"
-            ? shuffle([
-                (t as { sourcePlayerName?: string }).sourcePlayerName ?? "",
-                ...shuffle(
-                  [
-                    ...new Set(
-                      allTracks
-                        .map((o) => (o as { sourcePlayerName?: string }).sourcePlayerName)
-                        .filter(
-                          (name): name is string =>
-                            Boolean(name) &&
-                            name !== (t as { sourcePlayerName?: string }).sourcePlayerName,
-                        ),
-                    ),
-                  ],
-                ).slice(0, 3),
-              ])
+            ? buildOwnerOptions(
+                splitOwners((t as { sourcePlayerName?: string }).sourcePlayerName),
+                players.map((p) => p.name),
+              )
             : buildChoiceOptions(t, allTracks);
         return {
           room_id: room.id,
@@ -701,7 +683,7 @@ function RoomPage() {
 
     if (room.mode === "owner" && "option" in payload) {
       answer = payload.option;
-      titleOk = payload.option === track.source_player_name;
+      titleOk = splitOwners(track.source_player_name).includes(payload.option);
       artistOk = titleOk;
     } else if ("option" in payload) {
       answer = payload.option;
@@ -1348,12 +1330,15 @@ function RoundView({
   const triesPreview = room.mode === "tries" ? getPreviewSecondsForAttempt(Math.min(myGuesses.length, 3)) : null;
 
   // Multiple-choice feedback: color the picked option and reveal the right one.
+  const ownerAnswers = room.mode === "owner" ? splitOwners(track.source_player_name) : [];
   const correctOption =
     room.mode === "owner"
-      ? track.source_player_name ?? ""
+      ? formatOwners(track.source_player_name)
       : room.mode === "chronology"
       ? track.options[0] ?? ""
       : `${track.title} — ${track.artist}`;
+  const isRightOption = (option: string) =>
+    room.mode === "owner" ? ownerAnswers.includes(option) : option === correctOption;
   const myOption = myGuesses[0]?.answer ?? null;
   const myOptionCorrect = Boolean(myGuesses[0]?.correct_title);
 
@@ -1366,7 +1351,7 @@ function RoundView({
       return `${base} border-success bg-success/20 text-success flash-ok`;
     }
     if (option === myOption) return `${base} border-destructive bg-destructive/20 text-destructive shake`;
-    if (option === correctOption) return `${base} border-success bg-success/15 text-success`;
+    if (isRightOption(option)) return `${base} border-success bg-success/15 text-success`;
     return `${base} border-border bg-background/20 opacity-50`;
   }
 
@@ -1450,9 +1435,11 @@ function RoundView({
             </p>
             {(room.mode === "owner" || room.blend || room.mode === "blend") && track.source_player_name && (
               <p className="reveal-line mt-3 text-sm font-bold text-primary" style={{ animationDelay: "380ms" }}>
-                {room.mode === "blend"
-                  ? `Aportada por ${track.source_player_name}`
-                  : `La playlist era de ${track.source_player_name}`}
+                {splitOwners(track.source_player_name).length > 1
+                  ? `Estaba en varias playlists: ${formatOwners(track.source_player_name)}`
+                  : room.mode === "owner"
+                    ? `La playlist era de ${track.source_player_name}`
+                    : `Aportada por ${track.source_player_name}`}
               </p>
             )}
             <p
