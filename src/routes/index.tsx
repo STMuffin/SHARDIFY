@@ -55,6 +55,7 @@ function Home() {
   const [name, setName] = useState("");
   const [playlist, setPlaylist] = useState("");
   const [mode, setMode] = useState<GameMode>("choice");
+  const [blend, setBlend] = useState(false);
   const [teamBattle, setTeamBattle] = useState(false);
   const [rounds, setRounds] = useState(10);
   const [seconds, setSeconds] = useState(30);
@@ -158,7 +159,8 @@ function Home() {
       ...[...selected].map(playlistUrl),
       ...(playlist.trim() ? [playlist.trim()] : []),
     ];
-    if (mode !== "blend" && !urls.length) {
+    const usePlayerPlaylists = mode === "owner" || blend;
+    if (!usePlayerPlaylists && !urls.length) {
       return setError(
         spotify
           ? "Elige una o más playlists, o pega un enlace."
@@ -173,7 +175,7 @@ function Home() {
         tracks: [],
       };
 
-      if (mode !== "blend") {
+      if (urls.length) {
         const accessToken = await getSpotifyToken(clientId);
         setSpotify(Boolean(accessToken));
         data = await runLoadPlaylist({ data: { urls, accessToken } });

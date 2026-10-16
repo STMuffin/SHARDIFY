@@ -1,0 +1,1 @@
+ALTER TABLE public.rooms ADD COLUMN blend boolean NOT NULL DEFAULT false;
