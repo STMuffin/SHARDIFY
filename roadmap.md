@@ -7,4 +7,4 @@
 # Shared round results and answer covers
 - [x] Persist one shared reveal time for all six modes and use it for round transitions.
 - [x] Show each answer's cover in Blend and multiple choice.
-- [x] Test completion rules and verify multiplayer results and covers in the browser.
+- [x] Test completion rules and verify multiplayer results and covers in the browser.- [x] Blend como casilla activable en cualquier modo (crear sala y sala de espera)
