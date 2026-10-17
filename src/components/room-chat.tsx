@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import { db } from "@/lib/room";
+import { PlayerPhoto } from "@/components/player-photo";
 
 type ChatMessage = { id: string; player_id: string; name: string; body: string; created_at: string };
 
@@ -66,10 +67,13 @@ export function RoomChat({ roomId, playerId, name }: { roomId: string; playerId:
       <div ref={listRef} className="mt-3 h-56 space-y-1.5 overflow-y-auto pr-1 text-sm">
         {messages.length === 0 && <p className="text-xs text-muted-foreground">Nadie ha escrito todavía. ¡Saluda!</p>}
         {messages.map((m) => (
-          <p key={m.id} className="break-words">
+          <div key={m.id} className="flex items-start gap-2">
+            <PlayerPhoto playerId={m.player_id} name={m.name} className="size-6" />
+            <p className="min-w-0 flex-1 break-words">
             <span className={m.player_id === playerId ? "font-bold text-primary" : "font-bold text-foreground"}>{m.name}:</span>{" "}
             <span className="text-muted-foreground">{m.body}</span>
-          </p>
+            </p>
+          </div>
         ))}
       </div>
       <form onSubmit={send} className="mt-3 flex gap-2">

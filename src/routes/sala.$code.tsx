@@ -7,6 +7,7 @@ import { AnimatedScore } from "@/components/animated-score";
 import { Button } from "@/components/ui/button";
 import { RoomShare } from "@/components/room-share";
 import { RoomChat } from "@/components/room-chat";
+import { PlayerPhotos, PlayerPhoto, ProfilePhotoUpload } from "@/components/player-photo";
 import { getMusicVolume, MUSIC_VOLUME_EVENT } from "@/lib/audio-settings";
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { findPlayableTracks, loadPlaylist } from "@/lib/game.functions";
@@ -844,6 +845,7 @@ function RoomPage() {
   );
 
   return (
+    <PlayerPhotos me={me} clientKey={clientKey}>
     <main className="mx-auto w-full max-w-5xl px-4 pb-10 pt-20 sm:px-5">
       <audio ref={audioRef} playsInline className="hidden" />
 
@@ -956,6 +958,7 @@ function RoomPage() {
                     >
                       <span className="flex items-center gap-3">
                         <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
+                        <PlayerPhoto playerId={p.id} name={p.name} />
                         {p.name}
                       </span>
                       <AnimatedScore value={p.score} suffix=" pts" className="font-display font-bold" />
@@ -977,6 +980,7 @@ function RoomPage() {
         </section>
 
         <aside className="panel h-fit p-6">
+          <ProfilePhotoUpload me={me} clientKey={clientKey} />
           <h3 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">
             {room.team_battle ? "Equipos" : "Marcador"}
           </h3>
@@ -1002,6 +1006,7 @@ function RoomPage() {
                       }`}
                     >
                       <span className="flex items-center gap-2">
+                        <PlayerPhoto playerId={p.id} name={p.name} />
                         {p.is_host && <Crown className="size-3.5 text-accent" />}
                         {p.name}
                         {room.status === "playing" && answered && (
@@ -1016,10 +1021,12 @@ function RoomPage() {
                   );
                 })}
           </ul>
+          {room.team_battle && <div className="mt-3 space-y-2">{players.map((player) => <div key={player.id} className="flex items-center gap-2 text-sm text-muted-foreground"><PlayerPhoto playerId={player.id} name={player.name} /><span className="break-words">{player.name}</span></div>)}</div>}
           <RoomChat roomId={room.id} playerId={me.id} name={me.name} />
         </aside>
       </div>
     </main>
+    </PlayerPhotos>
   );
 }
 
@@ -1176,7 +1183,7 @@ function Lobby({
                   .filter((player) => player.playlist_tracks?.length)
                   .map((player) => (
                     <div key={player.id} className="flex items-center justify-between gap-3 rounded-lg bg-background/50 px-3 py-2">
-                      <span className="font-medium text-foreground">{player.name}</span>
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-foreground"><PlayerPhoto playerId={player.id} name={player.name} /><span className="break-words">{player.name}</span></span>
                       <span>{player.playlist_tracks?.length ?? 0} canciones</span>
                     </div>
                   ))}
