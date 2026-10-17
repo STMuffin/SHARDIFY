@@ -109,6 +109,7 @@ export type Database = {
       }
       players: {
         Row: {
+          avatar_path: string | null
           client_key: string
           created_at: string
           id: string
@@ -121,6 +122,7 @@ export type Database = {
           team: string | null
         }
         Insert: {
+          avatar_path?: string | null
           client_key: string
           created_at?: string
           id?: string
@@ -133,6 +135,7 @@ export type Database = {
           team?: string | null
         }
         Update: {
+          avatar_path?: string | null
           client_key?: string
           created_at?: string
           id?: string

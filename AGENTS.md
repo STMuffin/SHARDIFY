@@ -13,3 +13,4 @@
 - Keep room answer submission asynchronous with explicit success feedback so failed sends retain the player's input.
 - Persist early round revelation with a serialized database answer trigger; all clients and round transitions use the same reveal timestamp to avoid host-only results.
 - Store option-to-cover mappings with round tracks so every player sees the same answer artwork without extra music lookups.
+- Store player photos in private storage, resize and re-encode in the browser, and resolve temporary URLs through guest-membership-checked server functions; this preserves room access without requiring accounts or public buckets.

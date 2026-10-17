@@ -29,6 +29,13 @@
       "when": 1792022788611,
       "tag": "0003_rooms_blend_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792217297154,
+      "tag": "0004_player_profile_photos",
+      "breakpoints": true
     }
   ]
 }
