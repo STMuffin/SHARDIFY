@@ -1,4 +1,5 @@
 # Game polish
+- [ ] Add final player statistics and verify results in multiplayer.
 - [x] Add uploaded profile photos and verify visibility between players.
 - [x] Complete reveal animations and show the next-round countdown.
 - [x] Add room sharing and independent music/effect controls.

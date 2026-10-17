@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, Crown, Loader2, Music2, Play, Send, Users, Volume2, WifiOff } from "lucide-react";
 
 import { AnimatedScore } from "@/components/animated-score";
+import { GameResults } from "@/components/game-results";
 import { Button } from "@/components/ui/button";
 import { RoomShare } from "@/components/room-share";
 import { RoomChat } from "@/components/room-chat";
@@ -932,50 +933,16 @@ function RoomPage() {
           )}
 
           {room.status === "finished" && (
-             <div className="rise-in text-center">
-              <h2 className="font-display text-3xl font-bold">Fin de la partida</h2>
-              {room.team_battle ? (
-                <ol className="mt-6 space-y-3 text-left">
-                  {teamTotals.map((team, i) => (
-                    <li
-                      key={team.team}
-                      className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3"
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
-                        Equipo {team.team}
-                      </span>
-                      <AnimatedScore value={team.total} suffix=" pts" className="font-display font-bold" />
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <ol className="mt-6 space-y-3 text-left">
-                  {ranked.map((p, i) => (
-                    <li
-                      key={p.id}
-                      className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3"
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="font-display text-lg font-bold text-primary">{i + 1}</span>
-                        <PlayerPhoto playerId={p.id} name={p.name} />
-                        {p.name}
-                      </span>
-                      <AnimatedScore value={p.score} suffix=" pts" className="font-display font-bold" />
-                    </li>
-                  ))}
-                </ol>
-              )}
-              {isHost && (
-                <button
-                  onClick={playAgain}
-                  disabled={busy}
-                  className="glow mt-6 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground disabled:opacity-60"
-                >
-                  Jugar otra vez
-                </button>
-              )}
-            </div>
+            <GameResults
+              players={ranked}
+              guesses={guesses}
+              mode={room.mode}
+              rounds={room.rounds}
+              myId={me.id}
+              teams={teamTotals}
+              onPlayAgain={isHost ? playAgain : undefined}
+              busy={busy}
+            />
           )}
         </section>
 
