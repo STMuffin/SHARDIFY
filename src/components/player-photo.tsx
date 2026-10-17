@@ -15,7 +15,7 @@ export function PlayerPhotos({ me, clientKey, children }: { me: PlayerRow; clien
   const refresh = useCallback(async () => {
     try {
       const result = await getPhotos({ data: { playerId: me.id, roomId: me.room_id, clientKey } });
-      const browserOrigin = import.meta.env.VITE_SUPABASE_URL;
+      const browserOrigin = import.meta.env['VITE_SUPABASE_URL'];
       setPhotos(Object.fromEntries(Object.entries(result).map(([id, url]) => {
         const parsed = new URL(url);
         return [id, browserOrigin ? `${browserOrigin}${parsed.pathname}${parsed.search}` : url];
