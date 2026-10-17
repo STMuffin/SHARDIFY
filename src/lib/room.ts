@@ -86,6 +86,7 @@ export type RoomRow = {
 
 export type PlayerRow = {
   id: string;
+  avatar_path?: string | null;
   room_id: string;
   name: string;
   client_key: string;
