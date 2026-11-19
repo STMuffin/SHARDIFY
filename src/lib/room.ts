@@ -12,7 +12,7 @@ export function buildOptionCovers(options: string[], correct: ChoiceTrack, pool:
 }
 
 export function isPlayerRoundComplete(mode: string, guesses: Array<{ correct_title: boolean; correct_artist: boolean }>): boolean {
-  if (["choice", "blend", "owner", "chronology"].includes(mode)) return guesses.length > 0;
+  if (["choice", "blend", "owner", "chronology", "artist"].includes(mode)) return guesses.length > 0;
   if (mode === "tries") return guesses.length >= 4 || guesses.some((guess) => guess.correct_title || guess.correct_artist);
   return guesses.some((guess) => guess.correct_title) && guesses.some((guess) => guess.correct_artist);
 }
@@ -64,7 +64,7 @@ export function buildChoiceOptions(correct: ChoiceTrack, pool: ChoiceTrack[]): s
   return shuffle([label(correct), ...wrong]);
 }
 
-export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology" | "blend";
+export type GameMode = "type" | "choice" | "owner" | "tries" | "chronology" | "blend" | "artist";
 
 export type RoomRow = {
   id: string;
@@ -345,3 +345,17 @@ export const db = supabase as unknown as {
   channel: typeof supabase.channel;
   removeChannel: typeof supabase.removeChannel;
 };
+
+/** Four distinct artists: the right one plus three others from the playlist. */
+export function buildArtistOptions(correctArtist: string, pool: ChoiceTrack[]): string[] {
+  const seen = new Set([normalize(correctArtist)]);
+  const others: string[] = [];
+  for (const t of [...pool].sort(() => Math.random() - 0.5)) {
+    const key = normalize(t.artist);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    others.push(t.artist);
+    if (others.length === 3) break;
+  }
+  return [correctArtist, ...others].sort(() => Math.random() - 0.5);
+}

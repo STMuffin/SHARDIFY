@@ -44,7 +44,7 @@ import {
   type PlayerRow,
   type RoomRow,
   type RoundTrackRow,
-  buildChoiceOptions,
+  buildArtistOptions, buildChoiceOptions,
 } from "@/lib/room";
 
 export const Route = createFileRoute("/sala/$code")({
@@ -611,6 +611,8 @@ function RoomPage() {
                 splitOwners((t as { sourcePlayerName?: string }).sourcePlayerName),
                 players.map((p) => p.name),
               )
+            : room.mode === "artist"
+            ? buildArtistOptions(t.artist, allTracks)
             : buildChoiceOptions(t, allTracks);
         return {
           room_id: room.id,
@@ -691,6 +693,8 @@ function RoomPage() {
       answer = payload.option;
       titleOk = room.mode === "chronology"
         ? payload.option === track.options[0]
+        : room.mode === "artist"
+        ? payload.option === track.artist
         : payload.option === `${track.title} — ${track.artist}`;
       artistOk = titleOk;
     } else {
@@ -1310,6 +1314,8 @@ function RoundView({
       ? formatOwners(track.source_player_name)
       : room.mode === "chronology"
       ? track.options[0] ?? ""
+      : room.mode === "artist"
+      ? track.artist
       : `${track.title} — ${track.artist}`;
   const isRightOption = (option: string) =>
     room.mode === "owner" ? ownerAnswers.includes(option) : option === correctOption;
@@ -1454,7 +1460,7 @@ function RoundView({
                 </p>
               )}
             </div>
-          ) : room.mode === "choice" || room.mode === "chronology" || room.mode === "blend" ? (
+          ) : room.mode === "choice" || room.mode === "chronology" || room.mode === "blend" || room.mode === "artist" ? (
             <div>
               {room.mode === "chronology" && (
                 <p className="mb-4 text-center text-sm font-semibold text-muted-foreground">
@@ -1641,6 +1647,7 @@ const MODE_LABELS: Record<string, string> = {
   tries: "4 intentos",
   chronology: "Cronología",
   owner: "¿De quién es?",
+  artist: "Adivina el artista",
   blend: "Blend",
 };
 

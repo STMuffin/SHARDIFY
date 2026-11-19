@@ -136,3 +136,12 @@ for (const mode of ['choice', 'blend']) {
     ]), { 'One — A': '/correct.jpg', 'Two — B': '/second.jpg', 'Three — C': null });
   });
 }
+
+import { buildArtistOptions as artistOpts } from "./room";
+test("artist mode offers the right artist plus three different ones", () => {
+  const pool = ["A", "B", "C", "D", "A", "E"].map((artist, i) => ({ title: `t${i}`, artist }));
+  const options = artistOpts("A", pool as never);
+  expect(options).toHaveLength(4);
+  expect(options).toContain("A");
+  expect(new Set(options).size).toBe(4);
+});

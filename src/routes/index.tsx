@@ -378,6 +378,13 @@ function Home() {
                 title="¿De quién es?"
                 description="Cada jugador aporta una playlist y adivinan quién la eligió."
               />
+              <ModeCard
+                active={mode === "artist"}
+                onClick={() => setMode("artist")}
+                icon={<Music4 className="size-5" />}
+                title="Adivina el artista"
+                description="Suena la canción y eliges quién la canta entre cuatro artistas."
+              />
             </div>
           </Field>
 
