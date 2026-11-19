@@ -43,6 +43,13 @@
       "when": 1795124511097,
       "tag": "0005_tighten_room_access_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795124634497,
+      "tag": "0006_artist_mode_reveal",
+      "breakpoints": true
     }
   ]
 }
