@@ -67,6 +67,7 @@ export const Route = createFileRoute("/sala/$code")({
 });
 
 const REVEAL_SECONDS = 6;
+const ROOM_STATE_COLUMNS = "id,code,host_key,playlist_name,playlist_image,rounds,seconds,mode,status,current_round,round_started_at,round_revealed_at,team_battle,blend";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -137,9 +138,11 @@ function RoomPage() {
   }, [players, room?.team_battle]);
 
   useEffect(() => {
+    setNow(Date.now());
+    if (room?.status !== "playing") return;
     const id = window.setInterval(() => setNow(Date.now()), 200);
     return () => window.clearInterval(id);
-  }, []);
+  }, [room?.status]);
 
   // Sync with server clock so every player reveals the answer at the same time
   useEffect(() => {
@@ -172,9 +175,13 @@ function RoomPage() {
     };
   }, []);
 
-  const loadRoom = useCallback(async () => {
+  const loadRoom = useCallback(async (includeTracks = false) => {
     try {
-      const { data, error } = await db.from("rooms").select("*").eq("code", code.toUpperCase()).maybeSingle();
+      const { data, error } = await db
+        .from("rooms")
+        .select(includeTracks ? "*" : ROOM_STATE_COLUMNS)
+        .eq("code", code.toUpperCase())
+        .maybeSingle();
       if (error) {
         throw error;
       }
@@ -182,9 +189,12 @@ function RoomPage() {
         setNotFound(true);
         return null;
       }
-      setRoom(data as RoomRow);
+      const next = data as unknown as RoomRow;
+      setRoom((current) =>
+        !includeTracks && current?.id === next.id ? { ...next, tracks: current.tracks } : next,
+      );
       setNotFound(false);
-      return data as RoomRow;
+      return next;
     } catch (err) {
       console.error("loadRoom failed", err);
       setError(getErrorMessage(err, "No se pudo cargar la sala."));
@@ -217,7 +227,7 @@ function RoomPage() {
 
   useEffect(() => {
     void (async () => {
-      const found = await loadRoom();
+      const found = await loadRoom(true);
       if (found) {
         await loadPlayers(found.id);
         await loadGuesses(found.id);
@@ -233,7 +243,7 @@ function RoomPage() {
     let cancelled = false;
     let refreshing = false;
     const refresh = async () => {
-      if (cancelled || refreshing || !navigator.onLine) return;
+      if (cancelled || refreshing || !navigator.onLine || document.hidden) return;
       refreshing = true;
       try {
         await Promise.all([loadRoom(), loadPlayers(roomId), loadGuesses(roomId)]);
@@ -242,14 +252,19 @@ function RoomPage() {
       }
     };
 
+    const onVisibilityChange = () => {
+      if (!document.hidden) void refresh();
+    };
     void refresh();
     const id = window.setInterval(() => {
       void refresh();
     }, 900);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [roomId, loadRoom, loadPlayers, loadGuesses]);
 
@@ -527,7 +542,7 @@ function RoomPage() {
           tracks: data.tracks,
         })
         .eq("id", room.id);
-      await loadRoom();
+      await loadRoom(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pude leer esa playlist.");
     } finally {
@@ -787,7 +802,7 @@ function RoomPage() {
     return (
       <Centered>
         <Loader2 className="size-8 animate-spin text-primary" />
-        {error && <><p role="alert" className="mt-4 text-sm text-destructive">{error}</p><Button className="mt-4" onClick={() => void loadRoom()}>Reintentar</Button></>}
+        {error && <><p role="alert" className="mt-4 text-sm text-destructive">{error}</p><Button className="mt-4" onClick={() => void loadRoom(true)}>Reintentar</Button></>}
       </Centered>
     );
   }
@@ -795,18 +810,23 @@ function RoomPage() {
   if (!me) {
     return (
       <Centered>
-        <form onSubmit={handleJoin} className="panel w-full max-w-sm space-y-5 p-8">
-          <div>
-            <h1 className="text-2xl font-bold">Sala {room.code}</h1>
-            <p className="text-sm text-muted-foreground">{room.playlist_name}</p>
+        <form onSubmit={handleJoin} className="panel w-full max-w-sm space-y-6 p-7 text-left sm:p-8">
+          <div className="text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Te han invitado</p>
+            <h1 className="mt-2 font-display text-3xl">Sala {room.code}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{room.playlist_name}</p>
           </div>
-          <input
-            value={joinName}
-            onChange={(e) => setJoinName(e.target.value)}
-            placeholder="Tu nombre"
-            maxLength={20}
-            className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none focus:border-primary"
-          />
+          <label className="block space-y-2">
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Tu nombre</span>
+            <input
+              value={joinName}
+              onChange={(e) => setJoinName(e.target.value)}
+              placeholder="DJ Ana"
+              autoComplete="nickname"
+              maxLength={20}
+              className="field-input"
+            />
+          </label>
           {room.team_battle && (
             <div className="space-y-2 text-left">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Equipo</label>
@@ -851,152 +871,165 @@ function RoomPage() {
 
   return (
     <PlayerPhotos me={me} clientKey={clientKey}>
-    <main className="mx-auto w-full max-w-5xl px-4 pb-10 pt-20 sm:px-5">
-      <audio ref={audioRef} playsInline className="hidden" />
+      <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 sm:pt-8">
+        <audio ref={audioRef} playsInline className="hidden" />
 
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link to="/" className="font-display text-lg font-bold text-gradient">
-            SHARDIFY
-          </Link>
-          <p className="text-sm text-muted-foreground">{room.playlist_name}</p>
-        </div>
-        <div className="flex items-center gap-4">
-           <RoomShare code={room.code} />
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Users className="size-4" /> {players.length}
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+              {room.status === "lobby" ? "Sala abierta" : room.status === "finished" ? "Partida terminada" : "Partida en vivo"}
+            </p>
+            <h1 className="mt-1 truncate text-sm font-semibold text-muted-foreground">{room.playlist_name}</h1>
           </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <Users className="size-4" /> {players.length}
+            </span>
+            <RoomShare code={room.code} />
+          </div>
+        </header>
+
+        {!online && (
+          <p role="status" className="mt-5 flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <WifiOff className="size-4 shrink-0" /> Sin conexión. Intentando reconectar…
+          </p>
+        )}
+        {error && room.status !== "lobby" && (
+          <p role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
+        )}
+
+        {audioBlocked && room.status === "playing" && (
+          <button
+            onClick={unlockAudio}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground"
+          >
+            <Volume2 className="size-4" /> Activar el sonido
+          </button>
+        )}
+
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
+          <section className="panel min-w-0 p-5 sm:p-7">
+            {room.status === "lobby" && (
+              <Lobby
+                isHost={isHost}
+                busy={busy}
+                rounds={room.rounds}
+                seconds={room.seconds}
+                mode={room.mode === "blend" ? "choice" : room.mode}
+                blend={Boolean(room.blend) || room.mode === "blend"}
+                onToggleBlend={toggleBlend}
+                players={players}
+                me={me}
+                total={room.tracks?.length ?? 0}
+                playlistName={room.playlist_name}
+                onStart={startGame}
+                onChangePlaylist={changePlaylist}
+                onUploadPlayerPlaylist={uploadPlayerPlaylist}
+                onChangeMode={changeMode}
+                error={error}
+              />
+            )}
+
+            {room.status === "loading" && (
+              <div className="flex min-h-96 flex-col items-center justify-center gap-4 text-center">
+                <span className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Loader2 className="size-6 animate-spin" />
+                </span>
+                <div>
+                  <p className="font-display text-xl">Preparando la partida</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Cargando canciones y comprobando que suenan.</p>
+                </div>
+              </div>
+            )}
+
+            {room.status === "playing" && (
+              <RoundView
+                room={room}
+                track={track?.idx === room.current_round ? track : null}
+                remaining={remaining}
+                revealing={revealing}
+                myGuesses={myRoundGuesses}
+                titleFound={titleFound}
+                artistFound={artistFound}
+                roundPoints={roundPoints}
+                roundDone={roundDone}
+                answerPending={answerPending || !online}
+                revealRemaining={timing.revealRemaining}
+                completedPlayers={players.filter((player) => {
+                  const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
+                  return isPlayerRoundComplete(room.mode, mine);
+                }).length}
+                totalPlayers={players.length}
+                onAnswer={submitAnswer}
+                onReplay={() => setReplayNonce((value) => value + 1)}
+              />
+            )}
+
+            {room.status === "finished" && (
+              <GameResults
+                players={ranked}
+                guesses={guesses}
+                mode={room.mode}
+                rounds={room.rounds}
+                myId={me.id}
+                teams={teamTotals}
+                onPlayAgain={isHost ? playAgain : undefined}
+                busy={busy}
+              />
+            )}
+          </section>
+
+          <aside className="space-y-5 lg:sticky lg:top-6">
+            <section className="panel p-5">
+              <ProfilePhotoUpload me={me} clientKey={clientKey} />
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  {room.team_battle ? "Equipos" : "Marcador"}
+                </h2>
+                <span className="text-[10px] text-muted-foreground">Puntos</span>
+              </div>
+              <ul className="mt-3 divide-y divide-border">
+                {room.team_battle
+                  ? teamTotals.map((team) => (
+                      <li key={team.team} className="flex items-center justify-between py-3 text-sm">
+                        <span className="font-semibold">Equipo {team.team}</span>
+                        <AnimatedScore value={team.total} className="font-display text-sm" />
+                      </li>
+                    ))
+                  : ranked.map((p, index) => {
+                      const answered = guesses.some(
+                        (g) => g.player_id === p.id && g.round_idx === room.current_round,
+                      );
+                      return (
+                        <li key={p.id} className={`flex items-center justify-between gap-2 py-3 text-sm ${p.id === me.id ? "text-foreground" : "text-muted-foreground"}`}>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="w-4 shrink-0 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                            <PlayerPhoto playerId={p.id} name={p.name} />
+                            <span className="min-w-0 truncate font-semibold">{p.name}</span>
+                            {p.is_host && <Crown className="size-3.5 shrink-0 text-primary" />}
+                            {room.status === "playing" && answered && <span className="size-1.5 shrink-0 rounded-full bg-success" aria-label="Ha respondido" />}
+                            {(playerStreaks.get(p.id) ?? 0) >= 2 && <span className="shrink-0 text-[10px] font-bold text-primary">×1.2</span>}
+                          </span>
+                          <AnimatedScore value={p.score} className="shrink-0 font-display text-sm text-foreground" />
+                        </li>
+                      );
+                    })}
+              </ul>
+              {room.team_battle && (
+                <div className="mt-3 space-y-2 border-t border-border pt-3">
+                  {players.map((player) => (
+                    <div key={player.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <PlayerPhoto playerId={player.id} name={player.name} />
+                      <span className="break-words">{player.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+            <RoomChat roomId={room.id} playerId={me.id} name={me.name} />
+          </aside>
         </div>
-      </header>
-
-      {!online && <p role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><WifiOff className="size-4 shrink-0" /> Sin conexión. Intentando reconectar…</p>}
-      {error && room.status !== "lobby" && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
-
-      {audioBlocked && room.status === "playing" && (
-        <button
-          onClick={unlockAudio}
-          className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-primary/50 bg-primary/10 px-4 py-3 text-sm font-bold text-primary"
-        >
-          <Volume2 className="size-4" /> Toca aquí para activar el sonido
-        </button>
-      )}
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <section className="panel p-6 sm:p-8">
-          {room.status === "lobby" && (
-            <Lobby
-              isHost={isHost}
-              busy={busy}
-              rounds={room.rounds}
-              seconds={room.seconds}
-              mode={room.mode === "blend" ? "choice" : room.mode}
-              blend={Boolean(room.blend) || room.mode === "blend"}
-              onToggleBlend={toggleBlend}
-              players={players}
-              me={me}
-              total={room.tracks?.length ?? 0}
-              playlistName={room.playlist_name}
-              onStart={startGame}
-              onChangePlaylist={changePlaylist}
-              onUploadPlayerPlaylist={uploadPlayerPlaylist}
-              onChangeMode={changeMode}
-              error={error}
-            />
-
-          )}
-
-          {room.status === "loading" && (
-            <div className="flex flex-col items-center gap-3 py-16 text-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="font-display text-lg font-bold">Preparando canciones al azar…</p>
-              <p className="text-sm text-muted-foreground">Buscando los fragmentos de audio.</p>
-            </div>
-          )}
-
-          {room.status === "playing" && (
-            <RoundView
-              room={room}
-               track={track?.idx === room.current_round ? track : null}
-              remaining={remaining}
-              revealing={revealing}
-              myGuesses={myRoundGuesses}
-              titleFound={titleFound}
-              artistFound={artistFound}
-              roundPoints={roundPoints}
-              roundDone={roundDone}
-               answerPending={answerPending || !online}
-               revealRemaining={timing.revealRemaining}
-               completedPlayers={players.filter((player) => {
-                 const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
-                 return isPlayerRoundComplete(room.mode, mine);
-               }).length}
-               totalPlayers={players.length}
-              onAnswer={submitAnswer}
-              onReplay={() => setReplayNonce((value) => value + 1)}
-            />
-          )}
-
-          {room.status === "finished" && (
-            <GameResults
-              players={ranked}
-              guesses={guesses}
-              mode={room.mode}
-              rounds={room.rounds}
-              myId={me.id}
-              teams={teamTotals}
-              onPlayAgain={isHost ? playAgain : undefined}
-              busy={busy}
-            />
-          )}
-        </section>
-
-        <aside className="panel h-fit p-6">
-          <ProfilePhotoUpload me={me} clientKey={clientKey} />
-          <h3 className="font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">
-            {room.team_battle ? "Equipos" : "Marcador"}
-          </h3>
-          <ul className="mt-4 space-y-2">
-            {room.team_battle
-              ? teamTotals.map((team) => (
-                  <li key={team.team} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <span className="font-display font-bold text-foreground">Equipo {team.team}</span>
-                    </span>
-                    <AnimatedScore value={team.total} className="font-display font-bold text-foreground" />
-                  </li>
-                ))
-              : ranked.map((p) => {
-                  const answered = guesses.some(
-                    (g) => g.player_id === p.id && g.round_idx === room.current_round,
-                  );
-                  return (
-                    <li
-                      key={p.id}
-                      className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${
-                        p.id === me.id ? "bg-primary/10 text-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <PlayerPhoto playerId={p.id} name={p.name} />
-                        {p.is_host && <Crown className="size-3.5 text-accent" />}
-                        {p.name}
-                        {room.status === "playing" && answered && (
-                          <span className="size-1.5 rounded-full bg-primary" />
-                        )}
-                         {(playerStreaks.get(p.id) ?? 0) >= 2 && (
-                          <span className="text-[10px] font-bold text-primary/80">x1.2</span>
-                        )}
-                      </span>
-                      <AnimatedScore value={p.score} className="font-display font-bold text-foreground" />
-                    </li>
-                  );
-                })}
-          </ul>
-          {room.team_battle && <div className="mt-3 space-y-2">{players.map((player) => <div key={player.id} className="flex items-center gap-2 text-sm text-muted-foreground"><PlayerPhoto playerId={player.id} name={player.name} /><span className="break-words">{player.name}</span></div>)}</div>}
-          <RoomChat roomId={room.id} playerId={me.id} name={me.name} />
-        </aside>
-      </div>
-    </main>
+      </main>
     </PlayerPhotos>
   );
 }
@@ -1090,21 +1123,23 @@ function Lobby({
   }
 
   return (
+    <div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Todo listo para jugar</p>
+        <h2 className="mt-2 font-display text-3xl">Sala de espera</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Comparte el código y reúne a tu grupo.</p>
+      </div>
 
-    <div className="text-center">
-      <h2 className="font-display text-3xl font-bold">Sala de espera</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Comparte el código para que entren tus amigos.
-      </p>
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <dl className="mt-6 grid grid-cols-3 divide-x divide-border border-y border-border py-4 text-center">
         <Stat label="Canciones" value={String(rounds)} />
         <Stat label="Segundos" value={String(seconds)} />
         <Stat label="Modo" value={MODE_LABELS[mode] ?? "Escribir"} />
-      </div>
+      </dl>
+
       {isHost && (
-        <div className="mt-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Cambiar modo de juego</p>
-          <div className="mt-2 flex flex-wrap justify-center gap-2">
+        <fieldset className="mt-6">
+          <legend className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Modo de juego</legend>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {Object.entries(MODE_LABELS).filter(([value]) => value !== "blend").map(([value, text]) => (
               <button
                 key={value}
@@ -1112,71 +1147,75 @@ function Lobby({
                 disabled={busy}
                 aria-pressed={mode === value}
                 onClick={() => mode !== value && onChangeMode(value)}
-                className={
+                className={`min-h-11 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-60 ${
                   mode === value
-                    ? "rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground"
-                    : "rounded-full border border-border px-3 py-1.5 text-xs font-bold text-muted-foreground hover:border-primary hover:text-foreground disabled:opacity-60"
-                }
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground hover:border-foreground/40"
+                }`}
               >
                 {text}
               </button>
             ))}
           </div>
-        </div>
+        </fieldset>
       )}
+
       {isHost && mode !== "owner" && (
-        <label className="mx-auto mt-4 flex max-w-md items-center justify-between gap-3 rounded-xl border border-border bg-background/40 px-4 py-3 text-left hover:border-primary/40">
+        <label className="mt-5 flex items-center justify-between gap-4 rounded-xl bg-secondary px-4 py-3">
           <span>
-            <span className="block text-sm font-semibold">Blend</span>
-            <span className="block text-xs text-muted-foreground">Mezcla las playlists de todos los jugadores.</span>
+            <span className="block text-sm font-bold">Blend</span>
+            <span className="mt-1 block text-xs text-muted-foreground">Mezcla las playlists de todos.</span>
           </span>
           <input
             type="checkbox"
             checked={blend}
             disabled={busy}
             onChange={(e) => onToggleBlend(e.target.checked)}
-            className="h-4 w-4 accent-primary"
+            className="size-4 shrink-0 accent-primary"
           />
         </label>
       )}
       {!isHost && blend && mode !== "owner" && (
-        <p className="mt-3 text-xs font-bold text-primary">Blend activado: sube tu playlist para mezclarla.</p>
+        <p className="mt-4 rounded-xl bg-secondary p-3 text-xs font-semibold text-foreground">Blend activado: sube tu playlist para mezclarla.</p>
       )}
-      {usesPlayerLists ? (
-        <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/40 p-4 text-left">
-          {mode !== "owner" ? (
-            <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                Mezcla de playlists
-              </p>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {players
-                  .filter((player) => player.playlist_tracks?.length)
-                  .map((player) => (
-                    <div key={player.id} className="flex items-center justify-between gap-3 rounded-lg bg-background/50 px-3 py-2">
-                      <span className="flex min-w-0 items-center gap-2 font-medium text-foreground"><PlayerPhoto playerId={player.id} name={player.name} /><span className="break-words">{player.name}</span></span>
-                      <span>{player.playlist_tracks?.length ?? 0} canciones</span>
+
+      <div className="mt-6 border-t border-border pt-5">
+        {usesPlayerLists ? (
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              {mode === "owner" ? "Playlists de los jugadores" : "Mezcla de playlists"}
+            </p>
+            {mode !== "owner" ? (
+              <>
+                <div className="divide-y divide-border rounded-xl border border-border px-3">
+                  {players.filter((player) => player.playlist_tracks?.length).map((player) => (
+                    <div key={player.id} className="flex items-center justify-between gap-3 py-2.5 text-sm text-muted-foreground">
+                      <span className="flex min-w-0 items-center gap-2 font-medium text-foreground">
+                        <PlayerPhoto playerId={player.id} name={player.name} />
+                        <span className="break-words">{player.name}</span>
+                      </span>
+                      <span className="shrink-0 text-xs">{player.playlist_tracks?.length ?? 0} canciones</span>
                     </div>
                   ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                La app deduplica canciones repetidas y genera una playlist común antes de empezar.
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">Las canciones repetidas se detectan y cuentan para todos sus dueños.</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {players.filter((player) => player.playlist_tracks?.length).length}/{players.length} jugadores ya cargaron su playlist.
               </p>
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {players.filter((player) => player.playlist_tracks?.length).length}/{players.length} jugadores ya cargaron su playlist.
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="mt-4 text-xs text-muted-foreground">
-          <strong className="text-foreground">{playlistName}</strong> · {total} canciones cargadas ·
-          se sortean nuevas cada partida
-        </p>
-      )}
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">{playlistName}</strong>
+            <span className="mt-1 block text-xs">{total} canciones cargadas · nuevas rondas en cada partida</span>
+          </p>
+        )}
+      </div>
+
       {canUploadPlaylist && (
-        <div className="mx-auto mt-5 max-w-md space-y-3 text-left">
+        <div className="mt-5 space-y-3">
           {spotify && (
             <PlaylistPicker
               playlists={playlists}
@@ -1196,31 +1235,37 @@ function Lobby({
               value={newPlaylist}
               onChange={(e) => setNewPlaylist(e.target.value)}
               placeholder={spotify ? "O pega un enlace…" : "Pega un enlace de playlist…"}
-              className="flex-1 rounded-xl border border-input bg-background/60 px-4 py-2.5 text-sm outline-none focus:border-primary"
+              aria-label="Enlace de playlist"
+              className="field-input min-w-0 flex-1"
             />
             <button
               type="submit"
-              disabled={busy}
-              className="rounded-xl border border-border px-4 py-2.5 text-sm font-bold disabled:opacity-60"
+              disabled={busy || (!newPlaylist.trim() && selected.size === 0)}
+              className="shrink-0 rounded-xl border border-border px-4 text-sm font-bold hover:bg-secondary disabled:opacity-50"
             >
-              {usesPlayerLists ? "Cargar playlist" : "Cambiar"}
+              {usesPlayerLists ? "Cargar" : "Cambiar"}
             </button>
           </form>
         </div>
       )}
 
-      {isHost ? (
-        <button
-          onClick={onStart}
-          disabled={busy || (usesPlayerLists && players.some((player) => !player.playlist_tracks?.length))}
-          className="glow mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
-        >
-          <Play className="size-4" /> Empezar partida
-        </button>
-      ) : (
-        <p className="mt-8 text-sm text-muted-foreground">Esperando al anfitrión…</p>
-      )}
-      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+      <div className="mt-7 border-t border-border pt-5">
+        {isHost ? (
+          <button
+            onClick={onStart}
+            disabled={busy || (usesPlayerLists && players.some((player) => !player.playlist_tracks?.length))}
+            className="glow inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-8 py-3.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4 fill-current" />}
+            {busy ? "Preparando…" : "Empezar partida"}
+          </button>
+        ) : (
+          <p role="status" className="flex items-center justify-center gap-2 py-2 text-sm text-muted-foreground">
+            <span className="size-2 rounded-full bg-primary" /> Esperando al anfitrión…
+          </p>
+        )}
+        {error && <p role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+      </div>
     </div>
   );
 }
@@ -1350,11 +1395,11 @@ function RoundView({
             {(room.mode === "choice" || room.mode === "blend") && (
               <span className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-secondary text-muted-foreground">
                 <Music2 className="size-6" aria-hidden="true" />
-                {track.option_covers?.[option] && <img src={track.option_covers[option] ?? ""} alt={`Portada de ${option}`} className="absolute inset-0 size-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
+                {track.option_covers?.[option] && <img src={track.option_covers[option] ?? ""} alt={`Portada de ${option}`} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />}
               </span>
             )}
             <span className="min-w-0 flex-1">{option}</span>
-            {myOption !== null && option === correctOption && <Check className="shrink-0" />}
+            {myOption !== null && isRightOption(option) && <Check className="shrink-0" />}
           </Button>
         ))}
       </div>
@@ -1626,16 +1671,16 @@ function RoundView({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-background/40 px-4 py-3">
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="font-display text-lg font-bold">{value}</p>
+    <div className="min-w-0 px-2">
+      <dt className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">{label}</dt>
+      <dd className="mt-1 truncate font-display text-sm sm:text-base">{value}</dd>
     </div>
   );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-5 text-center">
+    <main className="flex min-h-[calc(100vh-4.5rem)] flex-col items-center justify-center px-5 text-center">
       {children}
     </main>
   );

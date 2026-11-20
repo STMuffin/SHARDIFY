@@ -1,7 +1,26 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight, Check, Loader2, Music4, Radio, Type } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  ArrowUpRight,
+  AudioLines,
+  Check,
+  ChevronDown,
+  Link2,
+  ListMusic,
+  Loader2,
+  Mic2,
+  Music2,
+  Play,
+  Radio,
+  Timer,
+  Type,
+  UserRoundSearch,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
 
 import { PlaylistPicker } from "@/components/playlist-picker";
 import { loadPlaylist } from "@/lib/game.functions";
@@ -47,6 +66,45 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+const MODES: { value: GameMode; title: string; description: string; icon: LucideIcon }[] = [
+  {
+    value: "choice",
+    title: "Opción múltiple",
+    description: "Elige la canción correcta entre cuatro opciones.",
+    icon: ListMusic,
+  },
+  {
+    value: "type",
+    title: "Escribir",
+    description: "Adivina el título y el artista escribiendo en el chat.",
+    icon: Type,
+  },
+  {
+    value: "tries",
+    title: "4 intentos",
+    description: "Cada fallo alarga el fragmento y reduce los puntos.",
+    icon: Timer,
+  },
+  {
+    value: "chronology",
+    title: "Cronología",
+    description: "Decide qué canción salió antes y cuál después.",
+    icon: ArrowUpDown,
+  },
+  {
+    value: "owner",
+    title: "¿De quién es?",
+    description: "Adivina quién aportó cada canción de la partida.",
+    icon: UserRoundSearch,
+  },
+  {
+    value: "artist",
+    title: "Adivina el artista",
+    description: "Reconoce quién canta entre cuatro artistas.",
+    icon: Mic2,
+  },
+];
+
 function Home() {
   const navigate = useNavigate();
   const runLoadPlaylist = useServerFn(loadPlaylist);
@@ -62,6 +120,7 @@ function Home() {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
   const [spotify, setSpotify] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -72,7 +131,9 @@ function Home() {
   useEffect(() => {
     setName(getSavedName());
     setSpotify(isSpotifyConnected());
-    runClientId().then((r) => setClientId(r.clientId)).catch(() => setClientId(null));
+    runClientId()
+      .then((r) => setClientId(r.clientId))
+      .catch(() => setClientId(null));
   }, [runClientId]);
 
   useEffect(() => {
@@ -85,14 +146,6 @@ function Home() {
     setPlaylistsLoading(true);
     void (async () => {
       try {
-        if (!clientId) {
-          if (!cancelled) {
-            setSpotify(false);
-            setPlaylists([]);
-            setError("Spotify no está configurado en esta app. Vuelve a conectar con una clave válida.");
-          }
-          return;
-        }
         const token = await getSpotifyToken(clientId);
         if (!token) {
           if (!cancelled) {
@@ -169,11 +222,11 @@ function Home() {
     }
     setLoading(true);
     try {
-      let data: { name: string; image: string | null; tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[] } = {
-        name: "Blend de jugadores",
-        image: null,
-        tracks: [],
-      };
+      let data: {
+        name: string;
+        image: string | null;
+        tracks: { title: string; artist: string; cover: string | null; releaseDate?: string }[];
+      } = { name: "Blend de jugadores", image: null, tracks: [] };
 
       if (urls.length) {
         const accessToken = await getSpotifyToken(clientId);
@@ -192,7 +245,11 @@ function Home() {
           code,
           host_key: hostKey,
           playlist_name:
-            mode === "owner" ? "Playlists de jugadores" : usePlayerPlaylists ? "Blend de jugadores" : data.name,
+            mode === "owner"
+              ? "Playlists de jugadores"
+              : usePlayerPlaylists
+                ? "Blend de jugadores"
+                : data.name,
           playlist_image: usePlayerPlaylists ? null : data.image,
           tracks: usePlayerPlaylists ? [] : data.tracks,
           rounds,
@@ -205,9 +262,7 @@ function Home() {
         .single();
       if (roomError) {
         if (mode === "owner" && isOwnerModeSchemaMissingError(roomError)) {
-          throw new Error(
-            "La base de datos aún no tiene la migración del modo '¿De quién es?'. Ejecuta la migración de Supabase para que funcione el modo propietario.",
-          );
+          throw new Error("El modo ‘¿De quién es?’ todavía no está disponible. Prueba otro modo.");
         }
         throw roomError;
       }
@@ -225,9 +280,7 @@ function Home() {
       const { error: playerError } = await db.from("players").insert(playerPayload);
       if (playerError) {
         if (mode === "owner" && isOwnerModeSchemaMissingError(playerError)) {
-          throw new Error(
-            "La base de datos aún no tiene las columnas del modo '¿De quién es?'. Ejecuta la migración de Supabase antes de crear la sala.",
-          );
+          throw new Error("El modo ‘¿De quién es?’ todavía no está disponible. Prueba otro modo.");
         }
         throw playerError;
       }
@@ -242,208 +295,228 @@ function Home() {
 
   async function handleJoin(event: React.FormEvent) {
     event.preventDefault();
-    setError(null);
+    setJoinError(null);
     const code = joinCode.trim().toUpperCase();
-    if (code.length < 4) return setError("Escribe el código de la sala.");
+    if (code.length < 4) return setJoinError("Escribe el código de la sala.");
     if (name.trim()) saveName(name.trim());
     navigate({ to: "/sala/$code", params: { code } });
   }
 
+  const selectedMode = MODES.find((item) => item.value === mode) ?? MODES[0];
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 pb-10 pt-20 sm:px-6">
-      <div className="grid gap-4 md:grid-cols-3 md:gap-5">
-        <section className="panel sheen rise-in col-span-full p-7 text-center sm:p-10">
-          <span className="pulse-ring inline-flex items-center gap-2 rounded-full border border-border bg-background/50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            <Radio className="size-3.5 animate-pulse text-primary" /> Blind test en vivo
-          </span>
-          <h1 className="mt-5 text-5xl font-bold sm:text-7xl">
-            <span className="title-animate">SHARDIFY</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground sm:text-base">
-            Pega cualquier playlist de Spotify, invita a tus amigos con un código y adivina canciones
-            a contrarreloj. Cada partida sortea canciones distintas.
-          </p>
-          <div className="mt-6 flex items-end justify-center gap-1">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <span
-                key={i}
-                className="equalizer-bar h-8 w-1.5 rounded-full bg-primary/70"
-                style={{ animationDelay: `${i * 90}ms` }}
-              />
-            ))}
-          </div>
-        </section>
-
-        <form
-          onSubmit={handleCreate}
-          className="panel panel-lift rise-in col-span-full space-y-6 p-6 sm:p-8 md:col-span-2 md:row-span-2"
-          style={{ animationDelay: "80ms" }}
-        >
+    <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8">
+      <section className="grid border-b border-border lg:grid-cols-[0.92fr_1.08fr]">
+        <div className="flex flex-col justify-between py-12 pr-0 sm:py-16 lg:py-20 lg:pr-14">
           <div>
-            <h2 className="text-2xl font-bold">Crear sala</h2>
-            <p className="text-sm text-muted-foreground">Tú serás el anfitrión de la partida.</p>
-          </div>
-
-          <Field label="Tu nombre">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="DJ Ana"
-              maxLength={20}
-              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
-            />
-          </Field>
-
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/40 p-4">
-            <button
-              type="button"
-              onClick={handleSpotify}
-              disabled={linking}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 disabled:opacity-60 ${
-                spotify
-                  ? "border border-primary/50 text-primary hover:bg-primary/10"
-                  : "bg-primary text-primary-foreground hover:brightness-110"
-              }`}
-            >
-              {linking ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : spotify ? (
-                <Check className="size-4" />
-              ) : (
-                <Music4 className="size-4" />
-              )}
-              {spotify ? "Spotify conectado" : "Conectar mi Spotify"}
-            </button>
-            <p className="flex-1 text-xs text-muted-foreground">
-              {spotify
-                ? "Elige las playlists que quieras: se cargan todas las canciones. Pulsa para desconectar."
-                : "Inicia sesión para ver tus playlists y cargarlas enteras, también las privadas."}
+            <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+              <span className="size-2 rounded-full bg-primary" aria-hidden="true" />
+              Blind test multijugador
+            </p>
+            <h1 className="mt-7 font-display text-[clamp(3.6rem,8vw,7.4rem)] leading-[0.88] uppercase">
+              Suena.
+              <span className="block text-primary">Adivina.</span>
+              Gana.
+            </h1>
+            <p className="mt-7 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Tu playlist de Spotify se convierte en una partida en vivo. Sin registros, sin
+              instalaciones y con canciones distintas cada vez.
             </p>
           </div>
 
-          {spotify && (
-            <div className="pop-in">
-              <PlaylistPicker
-                playlists={playlists}
-                loading={playlistsLoading}
-                selected={selected}
-                onToggle={togglePlaylist}
-              />
+          <div className="mt-10 flex max-w-md items-center gap-4 border-t border-border pt-6">
+            <div className="relative flex size-20 shrink-0 items-center justify-center rounded-full border-[10px] border-foreground bg-primary text-primary-foreground">
+              <AudioLines className="size-7" aria-hidden="true" />
+              <span className="absolute size-2 rounded-full bg-background" aria-hidden="true" />
             </div>
-          )}
-
-          <Field label={spotify ? "O pega un enlace" : "Playlist de Spotify"}>
-            <input
-              value={playlist}
-              onChange={(e) => setPlaylist(e.target.value)}
-              placeholder="https://open.spotify.com/playlist/..."
-              className="w-full rounded-xl border border-input bg-background/60 px-4 py-3 text-sm outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
-            />
-          </Field>
-
-          <Field label="Modo de juego">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ModeCard
-                active={mode === "choice"}
-                onClick={() => setMode("choice")}
-                icon={<Music4 className="size-5" />}
-                title="Opción múltiple"
-                description="Suena la canción y eliges entre cuatro respuestas."
-              />
-              <ModeCard
-                active={mode === "type"}
-                onClick={() => setMode("type")}
-                icon={<Type className="size-5" />}
-                title="Escribir"
-                description="Escribe el título y el artista antes de que acabe el tiempo."
-              />
-              <ModeCard
-                active={mode === "tries"}
-                onClick={() => setMode("tries")}
-                icon={<Radio className="size-5" />}
-                title="4 intentos"
-                description="1s, 5s, 10s y 20s de pista; cada fallo descuenta puntos."
-              />
-              <ModeCard
-                active={mode === "chronology"}
-                onClick={() => setMode("chronology")}
-                icon={<Radio className="size-5" />}
-                title="Cronología"
-                description="Escucha una canción y decide si salió antes o después de otra."
-              />
-              <ModeCard
-                active={mode === "owner"}
-                onClick={() => setMode("owner")}
-                icon={<Radio className="size-5" />}
-                title="¿De quién es?"
-                description="Cada jugador aporta una playlist y adivinan quién la eligió."
-              />
-              <ModeCard
-                active={mode === "artist"}
-                onClick={() => setMode("artist")}
-                icon={<Music4 className="size-5" />}
-                title="Adivina el artista"
-                description="Suena la canción y eliges quién la canta entre cuatro artistas."
-              />
-            </div>
-          </Field>
-
-          {mode !== "owner" && (
-            <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 hover:border-primary/40">
-              <div>
-                <div className="text-sm font-semibold">Blend</div>
-                <div className="text-xs text-muted-foreground">Mezcla las playlists de todos los jugadores en este modo.</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                Ahora suena
+              </p>
+              <p className="mt-1 truncate font-display text-lg">Tu próxima partida</p>
+              <div className="mt-3 flex h-4 items-end gap-1" aria-hidden="true">
+                {[9, 15, 7, 12, 16, 8, 13, 6, 11, 15, 9, 4].map((height, index) => (
+                  <span
+                    key={index}
+                    className="w-1 rounded-full bg-primary"
+                    style={{ height }}
+                  />
+                ))}
               </div>
-              <input
-                type="checkbox"
-                checked={blend}
-                onChange={(e) => setBlend(e.target.checked)}
-                className="h-4 w-4 accent-primary"
-              />
-            </label>
-          )}
-
-          <label className="flex items-center justify-between rounded-xl border border-border bg-background/40 px-4 py-3 hover:border-primary/40">
-            <div>
-              <div className="text-sm font-semibold">Batalla por equipos</div>
-              <div className="text-xs text-muted-foreground">Crea dos equipos y suma puntos por equipo.</div>
             </div>
-            <input
-              type="checkbox"
-              checked={teamBattle}
-              onChange={(e) => setTeamBattle(e.target.checked)}
-              className="h-4 w-4 accent-primary"
-            />
-          </label>
+            <span className="font-display text-sm tabular-nums">00:30</span>
+          </div>
+        </div>
 
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Slider
-              label="Canciones por partida"
-              value={rounds}
-              min={3}
-              max={30}
-              onChange={setRounds}
-              suffix="canciones"
-            />
-            <Slider
-              label="Tiempo por canción"
-              value={seconds}
-              min={10}
-              max={30}
-              step={5}
-              onChange={setSeconds}
-              suffix="segundos"
-            />
+        <form
+          onSubmit={handleCreate}
+          className="panel my-6 space-y-6 p-5 sm:my-10 sm:p-8 lg:ml-4"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+                Nueva partida
+              </p>
+              <h2 className="mt-1 font-display text-2xl">Crea tu sala</h2>
+            </div>
+            <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-foreground">
+              <Play className="size-4 fill-current" aria-hidden="true" />
+            </span>
           </div>
 
-          {error && <p className="pop-in text-sm text-destructive">{error}</p>}
+          <Field label="Tu nombre" htmlFor="player-name">
+            <input
+              id="player-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="DJ Ana"
+              autoComplete="nickname"
+              maxLength={20}
+              className="field-input"
+            />
+          </Field>
+
+          <div className="border-y border-border py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold">Tu música</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {spotify ? "Spotify conectado" : "Pega un enlace o conecta tu cuenta"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSpotify}
+                disabled={linking}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold disabled:opacity-60 ${
+                  spotify
+                    ? "border border-border bg-background text-foreground hover:bg-secondary"
+                    : "bg-foreground text-background hover:bg-foreground/90"
+                }`}
+              >
+                {linking ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : spotify ? (
+                  <Check className="size-4 text-primary" />
+                ) : (
+                  <Music2 className="size-4" />
+                )}
+                {spotify ? "Desconectar" : "Conectar Spotify"}
+              </button>
+            </div>
+
+            {spotify && (
+              <div className="pop-in mt-5">
+                <PlaylistPicker
+                  playlists={playlists}
+                  loading={playlistsLoading}
+                  selected={selected}
+                  onToggle={togglePlaylist}
+                />
+              </div>
+            )}
+
+            <div className="relative mt-4">
+              <Link2
+                className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                value={playlist}
+                onChange={(e) => setPlaylist(e.target.value)}
+                placeholder="https://open.spotify.com/playlist/..."
+                aria-label={spotify ? "Otro enlace de playlist" : "Playlist de Spotify"}
+                className="field-input pl-10"
+              />
+            </div>
+          </div>
+
+          <fieldset>
+            <legend className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Modo de juego
+            </legend>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {MODES.map((item) => {
+                const Icon = item.icon;
+                const active = mode === item.value;
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setMode(item.value)}
+                    className={`min-h-20 rounded-xl border p-3 text-left ${
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-foreground hover:border-foreground/40"
+                    }`}
+                  >
+                    <Icon className={`size-4 ${active ? "" : "text-primary"}`} aria-hidden="true" />
+                    <span className="mt-2 block text-xs font-bold leading-tight">{item.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{selectedMode?.description}</p>
+          </fieldset>
+
+          <details className="group border-t border-border pt-4">
+            <summary className="flex list-none items-center justify-between gap-3 text-sm font-bold">
+              <span>Opciones de partida</span>
+              <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                {rounds} canciones · {seconds} s
+                <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+              </span>
+            </summary>
+            <div className="mt-5 space-y-5">
+              {mode !== "owner" && (
+                <Toggle
+                  checked={blend}
+                  onChange={setBlend}
+                  title="Blend"
+                  description="Mezcla las playlists de todos los jugadores."
+                />
+              )}
+              <Toggle
+                checked={teamBattle}
+                onChange={setTeamBattle}
+                title="Batalla por equipos"
+                description="Forma dos equipos y sumad vuestros puntos."
+              />
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Slider
+                  label="Canciones"
+                  value={rounds}
+                  min={3}
+                  max={30}
+                  onChange={setRounds}
+                  suffix="rondas"
+                />
+                <Slider
+                  label="Tiempo"
+                  value={seconds}
+                  min={10}
+                  max={30}
+                  step={5}
+                  onChange={setSeconds}
+                  suffix="segundos"
+                />
+              </div>
+            </div>
+          </details>
+
+          {error && (
+            <p role="alert" className="pop-in rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="glow inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground transition hover:-translate-y-0.5 hover:brightness-110 disabled:opacity-60"
+            className="glow inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {loading && <Loader2 className="size-4 animate-spin" />}
+            {loading ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
             {loading
               ? selected.size > 1
                 ? "Leyendo las playlists…"
@@ -451,65 +524,67 @@ function Home() {
               : "Crear sala"}
           </button>
         </form>
+      </section>
 
-        <form
-          onSubmit={handleJoin}
-          className="panel panel-lift rise-in col-span-full space-y-5 p-6 sm:p-8 md:col-span-1"
-          style={{ animationDelay: "160ms" }}
-        >
-          <div>
-            <h2 className="text-2xl font-bold">Unirse</h2>
-            <p className="text-sm text-muted-foreground">¿Tienes un código? Entra aquí.</p>
+      <section className="grid border-b border-border md:grid-cols-[0.92fr_1.08fr]">
+        <form onSubmit={handleJoin} className="py-10 md:pr-14">
+          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+            <UsersRound className="size-4" /> Ya hay una partida
+          </p>
+          <h2 className="mt-2 font-display text-2xl">Entra con un código</h2>
+          <div className="mt-5 flex gap-2">
+            <input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="ABC12"
+              aria-label="Código de sala"
+              autoCapitalize="characters"
+              maxLength={6}
+              className="field-input min-w-0 flex-1 font-display text-xl uppercase tracking-[0.25em]"
+            />
+            <button
+              type="submit"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-foreground px-5 text-sm font-bold text-background hover:bg-foreground/90"
+            >
+              Entrar <ArrowRight className="size-4" />
+            </button>
           </div>
-          <input
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="ABC12"
-            maxLength={6}
-            className="w-full rounded-xl border border-input bg-background/60 px-4 py-4 text-center font-display text-3xl font-bold tracking-[0.4em] outline-none transition focus:border-primary focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_22%,transparent)]"
-          />
-          <button
-            type="submit"
-            className="w-full rounded-xl border border-primary/50 px-6 py-3 text-sm font-bold text-primary transition hover:-translate-y-0.5 hover:bg-primary/10"
-          >
-            Entrar a la sala
-          </button>
+          {joinError && (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {joinError}
+            </p>
+          )}
         </form>
 
-        <ul
-          className="panel panel-lift rise-in col-span-full space-y-3 p-6 text-sm text-muted-foreground md:col-span-1"
-          style={{ animationDelay: "240ms" }}
-        >
-          <li className="float-soft font-display text-base font-bold text-foreground">Cómo funciona</li>
-          <li>· Con Spotify puedes elegir varias playlists tuyas a la vez.</li>
-          <li>· Se cargan todas las canciones, sin tope de 100.</li>
-          <li>· Cada partida elige canciones al azar, nunca las mismas.</li>
-          <li>· La música suena sola hasta que se acaba el tiempo.</li>
-        </ul>
-      </div>
+        <ol className="grid gap-5 border-t border-border py-10 sm:grid-cols-3 md:border-l md:border-t-0 md:pl-10">
+          {[
+            ["01", "Crea", "Elige playlist y modo."],
+            ["02", "Comparte", "Invita con el código."],
+            ["03", "Juega", "Suma puntos al acertar."],
+          ].map(([number, title, text]) => (
+            <li key={number}>
+              <span className="font-display text-sm text-primary">{number}</span>
+              <h3 className="mt-3 text-sm font-bold">{title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-      <aside
-        className="panel rise-in mx-auto mt-5 flex max-w-2xl items-center gap-4 p-4 sm:gap-5 sm:p-5"
-        style={{ animationDelay: "300ms" }}
-      >
-        <img
-          src="https://shardix.pages.dev/images/avatar.png"
-          alt="Avatar del creador de SHARDIFY"
-          className="size-16 shrink-0 rounded-2xl border border-primary/30 bg-background/50 object-cover shadow-[0_8px_24px_-12px_var(--primary)] sm:size-20"
-        />
-        <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Página hecha mayormente con IA. Si quieres ver una página más normal con toques humanos,
-          <a
-            href="https://shardix.pages.dev/"
-            target="_blank"
-            rel="noreferrer"
-            className="ml-1 inline-flex items-center gap-1 font-semibold text-primary underline decoration-primary/40 underline-offset-4 hover:text-foreground"
-          >
-            entra a la página del creador
-            <ArrowUpRight className="size-3.5" aria-hidden="true" />
-          </a>
+      <footer className="flex flex-col gap-4 py-7 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-2">
+          <Radio className="size-4 text-primary" aria-hidden="true" />
+          Todas las canciones de la playlist. Nuevas rondas en cada partida.
         </p>
-      </aside>
+        <a
+          href="https://shardix.pages.dev/"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 font-semibold text-foreground underline decoration-primary/50 underline-offset-4 hover:text-primary"
+        >
+          Página del creador <ArrowUpRight className="size-3.5" aria-hidden="true" />
+        </a>
+      </footer>
     </main>
   );
 }
@@ -523,10 +598,18 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="block space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+    <label htmlFor={htmlFor} className="block space-y-2">
+      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </span>
       {children}
@@ -534,33 +617,30 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ModeCard({
-  active,
-  onClick,
-  icon,
+function Toggle({
+  checked,
+  onChange,
   title,
   description,
 }: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
   title: string;
   description: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border p-4 text-left transition ${
-        active
-          ? "border-primary bg-primary/10 text-foreground"
-          : "border-border bg-background/40 text-muted-foreground hover:border-primary/40"
-      }`}
-    >
-      <span className={active ? "text-primary" : ""}>{icon}</span>
-      <span className="mt-2 block font-display text-base font-bold text-foreground">{title}</span>
-      <span className="mt-1 block text-xs">{description}</span>
-    </button>
+    <label className="flex items-center justify-between gap-4">
+      <span>
+        <span className="block text-sm font-bold">{title}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{description}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-4 shrink-0 accent-primary"
+      />
+    </label>
   );
 }
 
@@ -582,15 +662,13 @@ function Slider({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-          {label}
+    <label className="block space-y-2">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-semibold text-muted-foreground">{label}</span>
+        <span className="text-sm font-bold tabular-nums">
+          {value} <span className="text-xs font-normal text-muted-foreground">{suffix}</span>
         </span>
-        <span className="font-display text-lg font-bold text-primary">
-          {value} <span className="text-xs text-muted-foreground">{suffix}</span>
-        </span>
-      </div>
+      </span>
       <input
         type="range"
         min={min}
@@ -600,6 +678,6 @@ function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-primary"
       />
-    </div>
+    </label>
   );
 }

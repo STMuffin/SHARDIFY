@@ -1,5 +1,11 @@
+# Minimal musical redesign
+- [ ] Rebuild the home page with a cream, black and red minimalist music direction.
+- [ ] Simplify the shared header, lobby, live round, scoreboard and chat.
+- [ ] Reduce repeated network requests and decorative animation work.
+- [ ] Verify the home page and a real two-player game on desktop and mobile.
+
 # Game polish
-- [ ] Add final player statistics and verify results in multiplayer.
+- [x] Add final player statistics and verify results in multiplayer.
 - [x] Add uploaded profile photos and verify visibility between players.
 - [x] Complete reveal animations and show the next-round countdown.
 - [x] Add room sharing and independent music/effect controls.

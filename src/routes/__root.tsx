@@ -8,6 +8,7 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
+import { Disc3 } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
@@ -18,19 +19,17 @@ function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Página no encontrada</h2>
+        <p className="font-display text-7xl text-primary">404</p>
+        <h1 className="mt-4 text-xl font-semibold text-foreground">Página no encontrada</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Esta página no existe o ha cambiado de dirección.
         </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Volver al inicio
-          </Link>
-        </div>
+        <Link
+          to="/"
+          className="mt-6 inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+        >
+          Volver al inicio
+        </Link>
       </div>
     </div>
   );
@@ -58,13 +57,13 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90"
           >
             Reintentar
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex items-center justify-center rounded-full border border-input bg-background px-5 py-2.5 text-sm font-bold text-foreground hover:bg-secondary"
           >
             Volver al inicio
           </a>
@@ -89,15 +88,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600;700&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
@@ -127,9 +123,25 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SoundToggle />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div className="min-h-screen">
+        <header className="border-b border-border/80 bg-background">
+          <div className="mx-auto flex h-18 w-full max-w-7xl items-center justify-between px-5 sm:px-8">
+            <Link to="/" className="group flex items-center gap-2.5" aria-label="SHARDIFY, ir al inicio">
+              <span className="flex size-8 items-center justify-center rounded-full bg-foreground text-background transition-transform group-hover:rotate-12">
+                <Disc3 className="size-4" aria-hidden="true" />
+              </span>
+              <span className="font-display text-lg tracking-[-0.06em]">SHARDIFY</span>
+            </Link>
+            <div className="flex items-center gap-3">
+              <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground sm:inline">
+                Tu música. Tu partida.
+              </span>
+              <SoundToggle />
+            </div>
+          </div>
+        </header>
+        <Outlet />
+      </div>
     </QueryClientProvider>
   );
 }

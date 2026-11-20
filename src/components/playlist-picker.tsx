@@ -81,6 +81,8 @@ export function PlaylistPicker({
                   <img
                     src={playlist.image}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                     className="size-10 shrink-0 rounded-md object-cover"
                   />
                 ) : (
