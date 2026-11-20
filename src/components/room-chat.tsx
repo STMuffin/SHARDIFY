@@ -34,7 +34,7 @@ export const RoomChat = memo(function RoomChat({ roomId, playerId, name }: { roo
         "postgres_changes" as never,
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `room_id=eq.${roomId}` },
         (payload) => {
-          const message = (payload as { new: ChatMessage }).new;
+          const message = (payload as unknown as { new: ChatMessage }).new;
           if (!message?.id) return;
           setMessages((current) =>
             current.some((item) => item.id === message.id)
