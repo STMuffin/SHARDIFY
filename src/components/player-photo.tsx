@@ -5,11 +5,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getRoomProfilePhotos, uploadProfilePhoto } from "@/lib/profile-photo.functions";
 import { prepareProfilePhoto } from "@/lib/profile-photo";
-import { db, type PlayerRow } from "@/lib/room";
+import { type PlayerRow } from "@/lib/room";
 
 const PhotoContext = createContext<{ photos: Record<string, string>; refresh: () => Promise<void> }>({ photos: {}, refresh: async () => {} });
 
-export function PlayerPhotos({ me, clientKey, children }: { me: PlayerRow; clientKey: string; children: ReactNode }) {
+export function PlayerPhotos({ me, clientKey, players, children }: { me: PlayerRow; clientKey: string; players: PlayerRow[]; children: ReactNode }) {
   const getPhotos = useServerFn(getRoomProfilePhotos);
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const refresh = useCallback(async () => {
@@ -25,21 +25,21 @@ export function PlayerPhotos({ me, clientKey, children }: { me: PlayerRow; clien
 
   useEffect(() => {
     void refresh();
-    // Signed URLs are renewed periodically; avatar changes arrive immediately.
+    // Signed URLs are renewed periodically without another realtime subscription.
     const timer = window.setInterval(() => void refresh(), 5 * 60 * 1000);
-    const channel = db
-      .channel(`player-photos-${me.room_id}`)
-      .on(
-        "postgres_changes" as never,
-        { event: "UPDATE", schema: "public", table: "players", filter: `room_id=eq.${me.room_id}` },
-        () => void refresh(),
-      )
-      .subscribe();
-    return () => {
-      window.clearInterval(timer);
-      void db.removeChannel(channel);
-    };
-  }, [refresh, me.room_id]);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const avatarPathsRef = useRef(new Map<string, string | null>());
+  useEffect(() => {
+    const previous = avatarPathsRef.current;
+    const changed = players.some(
+      (player) => previous.has(player.id) && previous.get(player.id) !== (player.avatar_path ?? null),
+    );
+    avatarPathsRef.current = new Map(players.map((player) => [player.id, player.avatar_path ?? null]));
+    // Score updates must not regenerate every player's signed photo URL.
+    if (changed) void refresh();
+  }, [players, refresh]);
 
   const value = useMemo(() => ({ photos, refresh }), [photos, refresh]);
   return <PhotoContext.Provider value={value}>{children}</PhotoContext.Provider>;

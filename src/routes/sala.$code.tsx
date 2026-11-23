@@ -68,6 +68,8 @@ export const Route = createFileRoute("/sala/$code")({
 
 const REVEAL_SECONDS = 6;
 const ROOM_STATE_COLUMNS = "id,code,host_key,playlist_name,playlist_image,rounds,seconds,mode,status,current_round,round_started_at,round_revealed_at,team_battle,blend";
+const PLAYER_STATE_COLUMNS = "id,avatar_path,room_id,name,client_key,score,is_host,playlist_name,team,created_at";
+const PLAYER_PLAYLIST_COLUMNS = `${PLAYER_STATE_COLUMNS},playlist_tracks`;
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
@@ -140,7 +142,7 @@ function RoomPage() {
   useEffect(() => {
     setNow(Date.now());
     if (room?.status !== "playing") return;
-    const id = window.setInterval(() => setNow(Date.now()), 200);
+    const id = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(id);
   }, [room?.status]);
 
@@ -203,11 +205,24 @@ function RoomPage() {
     }
   }, [code]);
 
-  const loadPlayers = useCallback(async (roomId: string) => {
+  const loadPlayers = useCallback(async (roomId: string, includePlaylists = false) => {
     try {
-      const { data, error } = await db.from("players").select("*").eq("room_id", roomId).order("created_at");
+      const { data, error } = await db
+        .from("players")
+        .select(includePlaylists ? PLAYER_PLAYLIST_COLUMNS : PLAYER_STATE_COLUMNS)
+        .eq("room_id", roomId)
+        .order("created_at");
       if (error) throw error;
-      setPlayers((data ?? []) as PlayerRow[]);
+      const next = (data ?? []) as PlayerRow[];
+      setPlayers((current) => {
+        if (includePlaylists) return next;
+        const previous = new Map(current.map((player) => [player.id, player]));
+        // Keep already loaded playlists without downloading them after every score update.
+        return next.map((player) => ({
+          ...player,
+          playlist_tracks: previous.get(player.id)?.playlist_tracks ?? [],
+        }));
+      });
     } catch (err) {
       console.error("loadPlayers failed", err);
       setError(getErrorMessage(err, "No se pudo cargar la lista de jugadores."));
@@ -229,13 +244,13 @@ function RoomPage() {
     void (async () => {
       const found = await loadRoom(true);
       if (found) {
-        await loadPlayers(found.id);
-        await loadGuesses(found.id);
+        await Promise.all([loadPlayers(found.id, true), loadGuesses(found.id)]);
       }
     })();
   }, [loadRoom, loadPlayers, loadGuesses]);
 
   const roomId = room?.id;
+  const includePlaylistTracks = room?.status === "lobby";
 
   useEffect(() => {
     if (!roomId) return;
@@ -255,7 +270,7 @@ function RoomPage() {
       try {
         await Promise.all([
           requested.room ? loadRoom() : Promise.resolve(null),
-          requested.players ? loadPlayers(roomId) : Promise.resolve(),
+          requested.players ? loadPlayers(roomId, includePlaylistTracks) : Promise.resolve(),
           requested.guesses ? loadGuesses(roomId) : Promise.resolve(),
         ]);
       } finally {
@@ -290,7 +305,7 @@ function RoomPage() {
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` }, () => request("players"))
       .on("postgres_changes" as never, { event: "*", schema: "public", table: "guesses", filter: `room_id=eq.${roomId}` }, () => request("guesses"))
       .subscribe();
-    const id = window.setInterval(refresh, 6000);
+    const id = window.setInterval(refresh, 15000);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("online", refresh);
 
@@ -302,7 +317,7 @@ function RoomPage() {
       window.removeEventListener("online", refresh);
       void db.removeChannel(channel);
     };
-  }, [roomId, loadRoom, loadPlayers, loadGuesses]);
+  }, [roomId, includePlaylistTracks, loadRoom, loadPlayers, loadGuesses]);
 
   // Current round track
   useEffect(() => {
@@ -553,7 +568,7 @@ function RoomPage() {
         }
         throw updateError;
       }
-      await loadPlayers(me.room_id);
+      await loadPlayers(me.room_id, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pude guardar tu playlist.");
     } finally {
@@ -628,7 +643,7 @@ function RoomPage() {
         data: { candidates, need: room.rounds + 6 },
       });
       // Download every clip before starting so no round stays silent.
-      const checks = await Promise.all(found.map((t) => preloadClip(t.previewUrl)));
+      const checks = await preloadClips(found.map((t) => t.previewUrl), 4);
       const playable = found.filter((_, i) => checks[i]).slice(0, room.rounds);
       if (!playable.length) throw new Error("No encontré audio para las canciones de esta playlist.");
 
@@ -820,7 +835,7 @@ function RoomPage() {
         .update({ status: "lobby", current_round: -1, round_started_at: null, round_revealed_at: null })
         .eq("id", room.id);
       if (roomError) throw roomError;
-      await Promise.all([loadRoom(true), loadPlayers(room.id), loadGuesses(room.id)]);
+      await Promise.all([loadRoom(true), loadPlayers(room.id, true), loadGuesses(room.id)]);
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo preparar otra partida. Inténtalo de nuevo."));
     } finally {
@@ -920,7 +935,7 @@ function RoomPage() {
   }
 
   return (
-    <PlayerPhotos me={me} clientKey={clientKey}>
+    <PlayerPhotos me={me} clientKey={clientKey} players={players}>
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-6 sm:px-6 sm:pt-8">
         <audio ref={audioRef} playsInline className="hidden" />
 
@@ -1467,7 +1482,7 @@ function RoundView({
       {!revealing && <p role="status" className="mt-3 text-right text-xs text-muted-foreground">{answerPending ? "Enviando…" : `${completedPlayers}/${totalPlayers} jugadores completaron la ronda`}</p>}
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
         <div
-          className="h-full rounded-full bg-primary transition-[width] duration-200"
+          className="h-full rounded-full bg-primary transition-[width] duration-500"
           style={{ width: `${progress * 100}%` }}
         />
       </div>
@@ -1742,6 +1757,24 @@ const MODE_LABELS: Record<string, string> = {
   artist: "Adivina el artista",
   blend: "Blend",
 };
+
+/** Preloads a bounded number of clips at once so large playlists do not saturate the connection. */
+async function preloadClips(urls: string[], concurrency: number): Promise<boolean[]> {
+  const results = new Array<boolean>(urls.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < urls.length) {
+      const index = nextIndex++;
+      const url = urls[index];
+      if (!url) return;
+      results[index] = await preloadClip(url);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, () => worker()));
+  return results;
+}
 
 /** Fully downloads one clip; resolves false if it can't be played. */
 function preloadClip(url: string): Promise<boolean> {

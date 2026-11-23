@@ -1,3 +1,10 @@
+# Diagnosis, performance and dark mode
+- [ ] Measure real page vitals and inspect current errors.
+- [ ] Add a persistent light/dark theme with system-theme detection.
+- [ ] Add an optimized fade between themes with reduced-motion support.
+- [ ] Reduce room rendering, playlist payloads, photo refreshes and audio preload congestion.
+- [ ] Verify home, room, multiplayer flow and both themes on desktop and mobile.
+
 # Minimal musical redesign
 - [x] Rebuild the home page with a cream, black and red minimalist music direction.
 - [x] Simplify the shared header, lobby, live round, scoreboard and chat.
