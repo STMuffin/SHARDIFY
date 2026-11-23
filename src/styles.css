@@ -155,10 +155,6 @@
   box-shadow: var(--shadow-glow);
 }
 
-@utility sheen {
-  /* Kept as a lightweight compatibility utility for existing panels. */
-}
-
 @utility title-animate {
   color: var(--foreground);
 }
@@ -180,14 +176,6 @@
 
 @utility rise-in {
   animation: rise-in 360ms ease-out both;
-}
-
-@utility float-soft {
-  /* No perpetual decorative motion in the minimal theme. */
-}
-
-@utility pulse-ring {
-  /* Status is communicated with color and text instead of infinite rings. */
 }
 
 @keyframes pop-in {

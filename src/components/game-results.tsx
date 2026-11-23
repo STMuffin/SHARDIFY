@@ -81,7 +81,7 @@ export function GameResults({ players, guesses, mode, rounds, myId, teams, onPla
         })}
       </ol>
       <div className="mt-6 text-center">
-        {onPlayAgain ? <Button onClick={onPlayAgain} disabled={busy} size="lg"><RotateCcw /> Jugar otra vez</Button> : <p role="status" className="text-sm text-muted-foreground">Esperando al anfitrión para volver a jugar…</p>}
+        {onPlayAgain ? <Button onClick={onPlayAgain} disabled={busy} size="lg"><RotateCcw /> {busy ? "Preparando sala…" : "Jugar otra vez"}</Button> : <p role="status" className="text-sm text-muted-foreground">Esperando al anfitrión para volver a jugar…</p>}
       </div>
     </div>
   );

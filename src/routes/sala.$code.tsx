@@ -242,29 +242,65 @@ function RoomPage() {
 
     let cancelled = false;
     let refreshing = false;
-    const refresh = async () => {
+    let flushTimer = 0;
+    const pending = { room: false, players: false, guesses: false };
+
+    const flush = async () => {
       if (cancelled || refreshing || !navigator.onLine || document.hidden) return;
       refreshing = true;
+      const requested = { ...pending };
+      pending.room = false;
+      pending.players = false;
+      pending.guesses = false;
       try {
-        await Promise.all([loadRoom(), loadPlayers(roomId), loadGuesses(roomId)]);
+        await Promise.all([
+          requested.room ? loadRoom() : Promise.resolve(null),
+          requested.players ? loadPlayers(roomId) : Promise.resolve(),
+          requested.guesses ? loadGuesses(roomId) : Promise.resolve(),
+        ]);
       } finally {
         refreshing = false;
+        if (pending.room || pending.players || pending.guesses) scheduleFlush();
       }
     };
 
-    const onVisibilityChange = () => {
-      if (!document.hidden) void refresh();
+    const scheduleFlush = () => {
+      window.clearTimeout(flushTimer);
+      flushTimer = window.setTimeout(() => void flush(), 80);
     };
-    void refresh();
-    const id = window.setInterval(() => {
-      void refresh();
-    }, 900);
+
+    const request = (part: keyof typeof pending) => {
+      pending[part] = true;
+      scheduleFlush();
+    };
+    const refresh = () => {
+      pending.room = true;
+      pending.players = true;
+      pending.guesses = true;
+      scheduleFlush();
+    };
+    const onVisibilityChange = () => {
+      if (!document.hidden) refresh();
+    };
+
+    // Realtime refreshes only the table that changed; a slow poll repairs missed events.
+    const channel = db
+      .channel(`room-state-${roomId}`)
+      .on("postgres_changes" as never, { event: "*", schema: "public", table: "rooms", filter: `id=eq.${roomId}` }, () => request("room"))
+      .on("postgres_changes" as never, { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` }, () => request("players"))
+      .on("postgres_changes" as never, { event: "*", schema: "public", table: "guesses", filter: `room_id=eq.${roomId}` }, () => request("guesses"))
+      .subscribe();
+    const id = window.setInterval(refresh, 6000);
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("online", refresh);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(flushTimer);
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", refresh);
+      void db.removeChannel(channel);
     };
   }, [roomId, loadRoom, loadPlayers, loadGuesses]);
 
@@ -769,20 +805,42 @@ function RoomPage() {
 
 
   async function playAgain() {
-    if (!room) return;
+    if (!room || !isHost || busy) return;
     setBusy(true);
-    await db.from("guesses").delete().eq("room_id", room.id);
-    await db.from("round_tracks").delete().eq("room_id", room.id);
-    await db.from("players").update({ score: 0 }).eq("room_id", room.id);
-    await db
-      .from("rooms")
-      .update({ status: "lobby", current_round: -1, round_started_at: null })
-      .eq("id", room.id);
-    await loadRoom();
-    await loadPlayers(room.id);
-    await loadGuesses(room.id);
-    setBusy(false);
+    setError(null);
+    try {
+      const { error: guessesError } = await db.from("guesses").delete().eq("room_id", room.id);
+      if (guessesError) throw guessesError;
+      const { error: tracksError } = await db.from("round_tracks").delete().eq("room_id", room.id);
+      if (tracksError) throw tracksError;
+      const { error: scoresError } = await db.from("players").update({ score: 0 }).eq("room_id", room.id);
+      if (scoresError) throw scoresError;
+      const { error: roomError } = await db
+        .from("rooms")
+        .update({ status: "lobby", current_round: -1, round_started_at: null, round_revealed_at: null })
+        .eq("id", room.id);
+      if (roomError) throw roomError;
+      await Promise.all([loadRoom(true), loadPlayers(room.id), loadGuesses(room.id)]);
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo preparar otra partida. Inténtalo de nuevo."));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const currentRound = room?.current_round ?? -1;
+  const currentMode = room?.mode ?? "type";
+  const ranked = useMemo(() => [...players].sort((a, b) => b.score - a.score), [players]);
+  const playerStreaks = useMemo(
+    () => new Map(ranked.map((player) => [player.id, getPlayerWinStreak(guesses, player.id, currentRound)])),
+    [ranked, guesses, currentRound],
+  );
+  const completedPlayers = useMemo(
+    () => players.filter((player) =>
+      isPlayerRoundComplete(currentMode, guesses.filter((guess) => guess.player_id === player.id && guess.round_idx === currentRound)),
+    ).length,
+    [players, guesses, currentMode, currentRound],
+  );
 
   if (notFound) {
     return (
@@ -860,14 +918,6 @@ function RoomPage() {
       </Centered>
     );
   }
-
-  const ranked = [...players].sort((a, b) => b.score - a.score);
-  const playerStreaks = new Map(
-    ranked.map((player) => [
-      player.id,
-      getPlayerWinStreak(guesses, player.id, room.current_round),
-    ]),
-  );
 
   return (
     <PlayerPhotos me={me} clientKey={clientKey}>
@@ -955,10 +1005,7 @@ function RoomPage() {
                 roundDone={roundDone}
                 answerPending={answerPending || !online}
                 revealRemaining={timing.revealRemaining}
-                completedPlayers={players.filter((player) => {
-                  const mine = guesses.filter((g) => g.player_id === player.id && g.round_idx === room.current_round);
-                  return isPlayerRoundComplete(room.mode, mine);
-                }).length}
+                completedPlayers={completedPlayers}
                 totalPlayers={players.length}
                 onAnswer={submitAnswer}
                 onReplay={() => setReplayNonce((value) => value + 1)}
