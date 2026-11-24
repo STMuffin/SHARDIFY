@@ -1,3 +1,9 @@
+# YouTube and Deezer playlists
+- [ ] Load complete public playlists from YouTube and Deezer without user credentials.
+- [ ] Add native YouTube playback and keep Spotify/Deezer audio previews working in every mode.
+- [ ] Offer Spotify, YouTube and Deezer as separate playlist choices at home and in the lobby.
+- [ ] Test provider parsing, playback rules and a real multiplayer game.
+
 # Faster answer verification
 - [x] Verify text answers immediately with reusable normalized matching.
 - [x] Show results and points optimistically without waiting for full room reloads.
