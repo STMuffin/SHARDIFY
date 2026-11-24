@@ -30,26 +30,48 @@ function levenshtein(a: string, b: string): number {
   return prev[b.length] ?? 0;
 }
 
-export function similarity(a: string, b: string): number {
-  const x = normalize(a);
-  const y = normalize(b);
+function normalizedSimilarity(x: string, y: string): number {
   if (!x || !y) return 0;
   if (x === y) return 1;
   const max = Math.max(x.length, y.length);
   return 1 - levenshtein(x, y) / max;
 }
 
-/** True when the guess is "close enough" to the expected value. */
-export function isClose(guess: string, expected: string): boolean {
-  const g = normalize(guess);
-  const e = normalize(expected);
+export function similarity(a: string, b: string): number {
+  return normalizedSimilarity(normalize(a), normalize(b));
+}
+
+function isNormalizedClose(g: string, e: string): boolean {
   if (!g || !e) return false;
   if (g === e) return true;
   if (e.length >= 5 && (g.includes(e) || e.includes(g))) return true;
-  // Multiple artists: match any of them
+  // Multiple artists: match any of them without normalizing the answer again.
   const parts = e.split(/\s+(?:and|x|vs)\s+/);
-  if (parts.length > 1 && parts.some((p) => p.length > 2 && similarity(g, p) >= 0.85)) return true;
-  return similarity(g, e) >= 0.82;
+  if (parts.length > 1 && parts.some((p) => p.length > 2 && normalizedSimilarity(g, p) >= 0.85)) return true;
+  // Different lengths cannot reach the threshold; skip the matrix calculation.
+  if (1 - Math.abs(g.length - e.length) / Math.max(g.length, e.length) < 0.82) return false;
+  return normalizedSimilarity(g, e) >= 0.82;
+}
+
+/** True when the guess is "close enough" to the expected value. */
+export function isClose(guess: string, expected: string): boolean {
+  return isNormalizedClose(normalize(guess), normalize(expected));
+}
+
+/**
+ * Prepares a round's expected values once. Each chat attempt then normalizes only
+ * the new text, rather than processing the same title and artist on every key send.
+ */
+export function createAnswerVerifier(title: string, artist: string) {
+  const expectedTitle = normalize(title);
+  const expectedArtist = normalize(artist);
+  return (guess: string, titleFound: boolean, artistFound: boolean) => {
+    const normalizedGuess = normalize(guess);
+    return {
+      titleCorrect: !titleFound && isNormalizedClose(normalizedGuess, expectedTitle),
+      artistCorrect: !artistFound && isNormalizedClose(normalizedGuess, expectedArtist),
+    };
+  };
 }
 
 /** How close a guess is to a value, mixing whole-string and word matches. */

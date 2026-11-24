@@ -1,3 +1,8 @@
+# Faster answer verification
+- [x] Verify text answers immediately with reusable normalized matching.
+- [x] Show results and points optimistically without waiting for full room reloads.
+- [x] Test matching rules and verify answer submission in a real room.
+
 # Diagnosis, performance and dark mode
 - [ ] Measure real page vitals and inspect current errors.
 - [ ] Add a persistent light/dark theme with system-theme detection.

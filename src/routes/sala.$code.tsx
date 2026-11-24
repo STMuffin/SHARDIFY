@@ -20,7 +20,7 @@ import {
   playlistUrl,
   type UserPlaylist,
 } from "@/lib/spotify";
-import { isClose, nearMissHint } from "@/lib/match";
+import { createAnswerVerifier, nearMissHint } from "@/lib/match";
 import { sfx } from "@/lib/sfx";
 import {
   buildBlendTracks,
@@ -350,6 +350,10 @@ function RoomPage() {
     };
   }, [room?.id, room?.status, room?.current_round]);
 
+  const verifyAnswer = useMemo(
+    () => createAnswerVerifier(track?.title ?? "", track?.artist ?? ""),
+    [track?.id, track?.title, track?.artist],
+  );
   const me = useMemo(
     () => players.find((p) => p.client_key === clientKey) ?? null,
     [players, clientKey],
@@ -766,8 +770,7 @@ function RoomPage() {
     } else {
       answer = payload.text.trim();
       if (answer.length < 2) return false;
-      titleOk = !titleFound && isClose(answer, track.title);
-      artistOk = !artistFound && isClose(answer, track.artist);
+      ({ titleCorrect: titleOk, artistCorrect: artistOk } = verifyAnswer(answer, titleFound, artistFound));
     }
 
     submittingAnswerRef.current = true;
@@ -787,6 +790,30 @@ function RoomPage() {
     const points = basePoints > 0 && previousWinStreak > 0
       ? Math.round(basePoints * 1.2)
       : basePoints;
+    const optimisticId = `pending-${crypto.randomUUID()}`;
+    const nextScore = me.score + points;
+
+    // Show the verified result now; persistence and other players reconcile afterwards.
+    setGuesses((current) => [...current, {
+      id: optimisticId,
+      room_id: room.id,
+      round_idx: room.current_round,
+      player_id: me.id,
+      answer,
+      correct_title: titleOk,
+      correct_artist: artistOk,
+      points,
+      created_at: new Date().toISOString(),
+    }]);
+    if (points > 0) {
+      setPlayers((current) => current.map((player) =>
+        player.id === me.id ? { ...player, score: nextScore } : player,
+      ));
+    }
+    if (titleOk && artistOk) sfx.correct();
+    else if (titleOk || artistOk) sfx.partial();
+    else if ("text" in payload && nearMissHint(answer, track.title, track.artist, titleFound, artistFound)) sfx.near();
+    else sfx.wrong();
 
     try {
       const { error: guessError } = await db.from("guesses").insert({
@@ -799,17 +826,25 @@ function RoomPage() {
         points,
       });
       if (guessError) throw guessError;
-      if (titleOk && artistOk) sfx.correct();
-      else if (titleOk || artistOk) sfx.partial();
-      else if ("text" in payload && nearMissHint(answer, track.title, track.artist, titleFound, artistFound)) sfx.near();
-      else sfx.wrong();
       if (points > 0) {
-        const { error: scoreError } = await db.from("players").update({ score: me.score + points }).eq("id", me.id);
-        if (scoreError) setError("Respuesta guardada, pero no se pudieron actualizar los puntos.");
+        const { error: scoreError } = await db.from("players").update({ score: nextScore }).eq("id", me.id);
+        if (scoreError) {
+          setError("Respuesta guardada, pero no se pudieron actualizar los puntos.");
+          void loadPlayers(room.id);
+        } else {
+          setPlayers((current) => current.map((player) =>
+            player.id === me.id ? { ...player, score: nextScore } : player,
+          ));
+        }
       }
-      await Promise.all([loadGuesses(room.id), loadPlayers(room.id), loadRoom()]);
       return true;
     } catch (err) {
+      setGuesses((current) => current.filter((guess) => guess.id !== optimisticId));
+      if (points > 0) {
+        setPlayers((current) => current.map((player) =>
+          player.id === me.id && player.score === nextScore ? { ...player, score: me.score } : player,
+        ));
+      }
       setError(getErrorMessage(err, "No se pudo enviar tu respuesta. Inténtalo de nuevo."));
       return false;
     } finally {
